@@ -5,13 +5,26 @@ class ModelConfig {
     this.models = {
       primary: process.env.OPENAI_MODEL_PRIMARY || 'gpt-4o',
       secondary: process.env.OPENAI_MODEL_SECONDARY || 'gpt-4o-mini',
-      fallback: 'gpt-3.5-turbo'
+      fallback: 'gpt-3.5-turbo',
     };
     this.currentModel = this.models.primary;
+
+    // Debug: Check if env vars are loaded
+    console.log('🔍 Debug - Environment check:', {
+      hasOpenAIKey: !!process.env.OPENAI_API_KEY,
+      keyLength: process.env.OPENAI_API_KEY
+        ? process.env.OPENAI_API_KEY.length
+        : 0,
+      primaryModel: process.env.OPENAI_MODEL_PRIMARY,
+      nodeEnv: process.env.NODE_ENV,
+    });
+
     this.apiKey = process.env.OPENAI_API_KEY;
-    
+
     if (!this.apiKey) {
       console.warn('⚠️  OPENAI_API_KEY not found in environment variables');
+    } else {
+      console.log('✅ OpenAI API key loaded successfully');
     }
   }
 
@@ -21,7 +34,11 @@ class ModelConfig {
       console.log(`🔄 Switched to model: ${this.currentModel}`);
       return true;
     }
-    console.warn(`❌ Model type '${modelType}' not found. Available: ${Object.keys(this.models).join(', ')}`);
+    console.warn(
+      `❌ Model type '${modelType}' not found. Available: ${Object.keys(
+        this.models,
+      ).join(', ')}`,
+    );
     return false;
   }
 
@@ -30,18 +47,23 @@ class ModelConfig {
       model: this.currentModel,
       temperature: 0.1,
       maxTokens: 2000,
-      timeout: 60000
+      timeout: 60000,
     };
 
     const finalOptions = { ...defaultOptions, ...options };
 
-    if (!this.apiKey) {
-      throw new Error('OpenAI API key is required. Please set OPENAI_API_KEY environment variable.');
+    // Always check for current API key (in case env vars loaded after constructor)
+    const currentApiKey = process.env.OPENAI_API_KEY;
+
+    if (!currentApiKey) {
+      throw new Error(
+        'OpenAI API key is required. Please set OPENAI_API_KEY environment variable.',
+      );
     }
 
     return new ChatOpenAI({
       ...finalOptions,
-      openAIApiKey: this.apiKey
+      openAIApiKey: currentApiKey,
     });
   }
 
@@ -49,28 +71,28 @@ class ModelConfig {
   getRouterModel() {
     return this.getModelInstance({
       temperature: 0.0, // Very deterministic for routing
-      maxTokens: 500
+      maxTokens: 500,
     });
   }
 
   getAnalysisModel() {
     return this.getModelInstance({
       temperature: 0.1, // Slightly creative for analysis
-      maxTokens: 2000
+      maxTokens: 2000,
     });
   }
 
   getChampionshipPredictionModel() {
     return this.getModelInstance({
       temperature: 0.2, // More creative for predictions
-      maxTokens: 1500
+      maxTokens: 1500,
     });
   }
 
   getHistoricalComparisonModel() {
     return this.getModelInstance({
       temperature: 0.1,
-      maxTokens: 2500 // More tokens for detailed comparisons
+      maxTokens: 2500, // More tokens for detailed comparisons
     });
   }
 
@@ -78,7 +100,7 @@ class ModelConfig {
     return this.getModelInstance({
       model: this.models.secondary, // Use cheaper model for summaries
       temperature: 0.0,
-      maxTokens: 1000
+      maxTokens: 1000,
     });
   }
 
@@ -87,14 +109,16 @@ class ModelConfig {
     try {
       const model = this.getModelInstance({
         maxTokens: 50,
-        temperature: 0
+        temperature: 0,
       });
-      
-      const result = await model.invoke([{
-        role: 'user',
-        content: 'Reply with just "OK" if you can hear me.'
-      }]);
-      
+
+      const result = await model.invoke([
+        {
+          role: 'user',
+          content: 'Reply with just "OK" if you can hear me.',
+        },
+      ]);
+
       console.log('✅ OpenAI connection test successful');
       return true;
     } catch (error) {
@@ -108,7 +132,7 @@ class ModelConfig {
     return {
       current: this.currentModel,
       available: this.models,
-      hasApiKey: !!this.apiKey
+      hasApiKey: !!this.apiKey,
     };
   }
 
@@ -124,11 +148,11 @@ class ModelConfig {
       'rate limit',
       'insufficient_quota',
       'model_not_found',
-      'model_overloaded'
+      'model_overloaded',
     ];
-    
+
     const errorMessage = error.message.toLowerCase();
-    return fallbackTriggers.some(trigger => errorMessage.includes(trigger));
+    return fallbackTriggers.some((trigger) => errorMessage.includes(trigger));
   }
 
   // Automatic fallback handling
@@ -137,16 +161,24 @@ class ModelConfig {
       const model = this.getModelInstance(options);
       return await model.invoke(messages);
     } catch (error) {
-      if (this.shouldUseFallback(error) && this.currentModel !== this.models.fallback) {
-        console.warn(`⚠️  Primary model failed, trying fallback: ${this.models.fallback}`);
+      if (
+        this.shouldUseFallback(error) &&
+        this.currentModel !== this.models.fallback
+      ) {
+        console.warn(
+          `⚠️  Primary model failed, trying fallback: ${this.models.fallback}`,
+        );
         try {
           const fallbackModel = this.getModelInstance({
             ...options,
-            model: this.models.fallback
+            model: this.models.fallback,
           });
           return await fallbackModel.invoke(messages);
         } catch (fallbackError) {
-          console.error('❌ Fallback model also failed:', fallbackError.message);
+          console.error(
+            '❌ Fallback model also failed:',
+            fallbackError.message,
+          );
           throw fallbackError;
         }
       }
