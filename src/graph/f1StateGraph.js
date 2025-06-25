@@ -3,12 +3,29 @@ import { HumanMessage, AIMessage } from '@langchain/core/messages';
 import { F1GraphState, stateHelpers } from './f1GraphState.js';
 import { agentFactory } from '../agents/agentFactory.js';
 import { modelConfig } from '../config/modelConfig.js';
+import { ConversationMemory } from '../memory/conversationMemory.js';
+import { ConfirmationWorkflow } from '../humanLoop/confirmationWorkflow.js';
+import { QueryValidator } from '../humanLoop/queryValidator.js';
 
 class F1StateGraphOrchestrator {
   constructor() {
     this.graph = null;
     this.agentFactory = agentFactory;
     this.initialized = false;
+    
+    // Initialize human-in-the-loop and memory systems
+    this.conversationMemory = new ConversationMemory({
+      maxMessages: 100,
+      summarizerModel: 'gpt-4o-mini'
+    });
+    
+    this.confirmationWorkflow = new ConfirmationWorkflow({
+      confirmationTimeout: 300000, // 5 minutes
+      autoConfirmThreshold: 0.95,
+      complexQueryThreshold: 0.7
+    });
+    
+    this.queryValidator = new QueryValidator();
   }
 
   async initialize() {
@@ -94,30 +111,71 @@ class F1StateGraphOrchestrator {
     const startTime = Date.now();
     const lastMessage = state.messages[state.messages.length - 1];
     const query = lastMessage.content;
+    const sessionId = state.sessionId || 'default_session';
+    const userId = state.userId;
 
     try {
-      // Basic query analysis
+      // Initialize conversation memory for this session
+      this.conversationMemory.initializeSession(sessionId, userId);
+      
+      // Get conversation context for better analysis
+      const conversationContext = this.conversationMemory.getRelevantContext(sessionId, query);
+      
+      // Validate query with context
+      const validation = this.queryValidator.validateQuery(query, conversationContext);
+      
+      // Enhanced query analysis
       const queryAnalysis = {
         originalQuery: query,
         queryLength: query.length,
-        queryType: this.classifyQuery(query),
+        queryType: validation.queryType || this.classifyQuery(query),
         extractedEntities: this.extractEntities(query),
-        complexity: this.assessComplexity(query),
-        language: 'en', // Could be detected
-        timestamp: new Date().toISOString()
+        complexity: validation.complexity || this.assessComplexity(query),
+        language: 'en',
+        timestamp: new Date().toISOString(),
+        validation: {
+          isValid: validation.isValid,
+          confidence: validation.confidence,
+          refinementNeeded: validation.refinementNeeded,
+          suggestions: validation.suggestions,
+          warnings: validation.warnings,
+          errors: validation.errors
+        },
+        conversationContext
       };
 
-      // Update state with analysis
+      // Add human message to conversation memory
+      this.conversationMemory.addMessage(sessionId, new HumanMessage(query), {
+        queryAnalysis: queryAnalysis,
+        timestamp: new Date().toISOString()
+      });
+
+      // Update state with enhanced analysis
       const updatedState = {
         ...state,
         queryAnalysis,
+        sessionId,
+        userId,
+        validationResult: validation,
         metadata: {
           ...state.metadata,
-          analysisTime: Date.now() - startTime
+          analysisTime: Date.now() - startTime,
+          hasConversationContext: !!conversationContext,
+          memoryInitialized: true
         }
       };
 
-      console.log(`✅ Query analyzed: ${queryAnalysis.queryType} (${queryAnalysis.complexity})`);
+      // Check if query needs refinement
+      if (validation.refinementNeeded && !validation.isValid) {
+        console.log(`⚠️  Query validation failed: ${validation.errors.join(', ')}`);
+        return stateHelpers.setError(updatedState, {
+          type: 'validation_error',
+          message: 'Query validation failed',
+          validation
+        });
+      }
+
+      console.log(`✅ Query analyzed: ${queryAnalysis.queryType} (${queryAnalysis.complexity.level || queryAnalysis.complexity}) - Confidence: ${validation.confidence}`);
       return updatedState;
 
     } catch (error) {
@@ -296,28 +354,88 @@ class F1StateGraphOrchestrator {
     try {
       const results = state.multiAgentResults;
       const isMultiAgent = state.isMultiAgent;
+      const sessionId = state.sessionId;
       
       let finalResponse;
+      let agentResponse;
       
       if (isMultiAgent && state.synthesis) {
         // Multi-agent response with synthesis
         finalResponse = this.formatMultiAgentResponse(state.synthesis, results);
+        agentResponse = {
+          response: finalResponse,
+          confidence: state.synthesis.overallConfidence,
+          agentUsed: 'multi-agent',
+          multiAgent: true,
+          agents: results.map(r => r.agentId)
+        };
       } else if (results && results.length > 0) {
         // Single agent response
         finalResponse = this.formatSingleAgentResponse(results[0]);
+        agentResponse = {
+          response: finalResponse,
+          confidence: results[0].confidence,
+          agentUsed: results[0].agentId,
+          multiAgent: false
+        };
       } else {
         throw new Error('No results available for response generation');
       }
 
+      // Check if human confirmation is needed
+      const needsConfirmation = this.confirmationWorkflow.shouldRequestConfirmation(
+        state.queryAnalysis,
+        agentResponse
+      );
+
+      if (needsConfirmation) {
+        console.log('⚠️  Response requires human confirmation');
+        
+        // Create confirmation request
+        const confirmationRequest = this.confirmationWorkflow.createConfirmationRequest(
+          sessionId,
+          state.queryAnalysis,
+          agentResponse,
+          state.userId
+        );
+
+        // Store pending response in state for later retrieval
+        const updatedState = {
+          ...state,
+          pendingResponse: agentResponse,
+          confirmationRequest,
+          awaitingConfirmation: true,
+          requiresHumanInput: true,
+          metadata: {
+            ...state.metadata,
+            processingTime: Date.now() - new Date(state.metadata.timestamp).getTime(),
+            confirmationRequested: true
+          }
+        };
+
+        return updatedState;
+      }
+
+      // No confirmation needed - proceed with response
       const aiMessage = new AIMessage(finalResponse);
+      
+      // Add AI response to conversation memory
+      this.conversationMemory.addMessage(sessionId, aiMessage, {
+        agentUsed: agentResponse.agentUsed,
+        confidence: agentResponse.confidence,
+        processingTime: Date.now() - new Date(state.metadata.timestamp).getTime(),
+        multiAgent: agentResponse.multiAgent
+      });
       
       const updatedState = {
         ...state,
         messages: [...state.messages, aiMessage],
+        finalAgentResponse: agentResponse,
         metadata: {
           ...state.metadata,
           processingTime: Date.now() - new Date(state.metadata.timestamp).getTime(),
-          responseGenerated: true
+          responseGenerated: true,
+          memoryUpdated: true
         }
       };
 
@@ -351,9 +469,38 @@ class F1StateGraphOrchestrator {
   async requestHumanInput(state) {
     console.log('👤 Requesting human input...');
 
-    const humanMessage = new AIMessage(
-      'I need additional information to better answer your Formula 1 question. Could you please provide more details or clarify what specific aspect you\'d like me to focus on?'
-    );
+    let humanMessage;
+    
+    if (state.awaitingConfirmation && state.confirmationRequest) {
+      // Format confirmation request for user
+      const confirmationMessage = `${state.confirmationRequest.message}\n\n` +
+        `**Query:** ${state.confirmationRequest.query}\n\n` +
+        `**Preview:** ${state.confirmationRequest.agentResponse.preview}\n\n` +
+        `**Confidence:** ${Math.round(state.confirmationRequest.agentResponse.confidence * 100)}%\n\n` +
+        `**Options:**\n` +
+        state.confirmationRequest.options.map(opt => 
+          `• **${opt.label}** - ${opt.description}`
+        ).join('\n') + 
+        `\n\n*Confirmation ID: ${state.confirmationRequest.confirmationId}*`;
+        
+      humanMessage = new AIMessage(confirmationMessage);
+    } else if (state.validationResult && !state.validationResult.isValid) {
+      // Handle validation errors with suggestions
+      const validationMessage = `I found some issues with your query:\n\n` +
+        `**Issues:**\n${state.validationResult.errors.join('\n• ')}\n\n` +
+        (state.validationResult.warnings.length > 0 ? 
+          `**Warnings:**\n${state.validationResult.warnings.join('\n• ')}\n\n` : '') +
+        (state.validationResult.suggestions.length > 0 ? 
+          `**Suggestions:**\n${state.validationResult.suggestions.join('\n• ')}\n\n` : '') +
+        `Please try rephrasing your question or provide more specific details about what you'd like to know about Formula 1.`;
+        
+      humanMessage = new AIMessage(validationMessage);
+    } else {
+      // General request for more information
+      humanMessage = new AIMessage(
+        'I need additional information to better answer your Formula 1 question. Could you please provide more details or clarify what specific aspect you\'d like me to focus on?'
+      );
+    }
 
     return {
       ...state,
@@ -526,6 +673,58 @@ Keep the response engaging and informative while maintaining technical accuracy.
 ---
 *Multi-agent analysis completed by: ${results.map(r => r.agentId).join(', ')}*
 *Overall confidence: ${(synthesis.overallConfidence * 100).toFixed(0)}%*`;
+  }
+
+  // Human-in-the-Loop Methods
+  async processConfirmation(confirmationId, userAction, additionalData = {}) {
+    try {
+      const result = await this.confirmationWorkflow.processConfirmation(
+        confirmationId, 
+        userAction, 
+        additionalData
+      );
+      
+      if (result.success && result.action === 'confirmed') {
+        // User confirmed - deliver the response
+        const sessionId = this.getSessionFromConfirmation(confirmationId);
+        if (sessionId) {
+          // Add confirmed response to memory
+          const aiMessage = new AIMessage(result.response);
+          this.conversationMemory.addMessage(sessionId, aiMessage, {
+            agentUsed: result.agentUsed,
+            confidence: result.confidence,
+            confirmed: true
+          });
+        }
+      }
+      
+      return result;
+    } catch (error) {
+      console.error('Confirmation processing error:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  async getConversationHistory(sessionId, limit = 20) {
+    return this.conversationMemory.getConversationHistory(sessionId, limit);
+  }
+
+  async getUserPreferences(userId) {
+    return this.conversationMemory.getUserPreferences(userId);
+  }
+
+  async setUserPreferences(userId, preferences) {
+    return this.conversationMemory.setUserPreference(userId, preferences);
+  }
+
+  getPendingConfirmations(sessionId) {
+    return this.confirmationWorkflow.getPendingConfirmations(sessionId);
+  }
+
+  getSessionFromConfirmation(confirmationId) {
+    // Helper method to get session ID from confirmation ID
+    const confirmation = this.confirmationWorkflow.pendingConfirmations.get(confirmationId);
+    return confirmation?.sessionId || null;
   }
 
   // Public methods

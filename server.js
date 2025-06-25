@@ -313,6 +313,178 @@ app.post('/api/agents/:agentId/query', async (req, res) => {
   }
 });
 
+// Human-in-the-Loop Endpoints
+
+// Process confirmation
+app.post('/api/confirmations/:confirmationId', async (req, res) => {
+  try {
+    const { confirmationId } = req.params;
+    const { action, additionalData = {} } = req.body;
+    
+    if (!action) {
+      return res.status(400).json({
+        success: false,
+        error: 'Action is required (confirm, refine, alternative, cancel)'
+      });
+    }
+
+    // Ensure system is initialized
+    if (!systemInitialized) {
+      await initializeF1System();
+    }
+
+    console.log(`👤 Processing confirmation ${confirmationId}: ${action}`);
+    
+    const result = await f1StateGraph.processConfirmation(confirmationId, action, additionalData);
+    
+    res.json({
+      success: result.success,
+      data: result,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    console.error('Confirmation processing error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Confirmation processing failed',
+      message: error.message
+    });
+  }
+});
+
+// Get pending confirmations for a session
+app.get('/api/sessions/:sessionId/confirmations', async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    
+    // Ensure system is initialized
+    if (!systemInitialized) {
+      await initializeF1System();
+    }
+
+    const confirmations = f1StateGraph.getPendingConfirmations(sessionId);
+    
+    res.json({
+      success: true,
+      data: {
+        sessionId,
+        confirmations,
+        count: confirmations.length
+      }
+    });
+
+  } catch (error) {
+    console.error('Get confirmations error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get confirmations',
+      message: error.message
+    });
+  }
+});
+
+// Get conversation history
+app.get('/api/sessions/:sessionId/history', async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+    const { limit = 20 } = req.query;
+    
+    // Ensure system is initialized
+    if (!systemInitialized) {
+      await initializeF1System();
+    }
+
+    const history = await f1StateGraph.getConversationHistory(sessionId, parseInt(limit));
+    
+    res.json({
+      success: true,
+      data: history || {
+        sessionId,
+        messages: [],
+        summary: '',
+        context: {}
+      }
+    });
+
+  } catch (error) {
+    console.error('Get conversation history error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get conversation history',
+      message: error.message
+    });
+  }
+});
+
+// User preferences endpoints
+app.get('/api/users/:userId/preferences', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    
+    // Ensure system is initialized
+    if (!systemInitialized) {
+      await initializeF1System();
+    }
+
+    const preferences = await f1StateGraph.getUserPreferences(userId);
+    
+    res.json({
+      success: true,
+      data: {
+        userId,
+        preferences
+      }
+    });
+
+  } catch (error) {
+    console.error('Get user preferences error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get user preferences',
+      message: error.message
+    });
+  }
+});
+
+app.put('/api/users/:userId/preferences', async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const { preferences } = req.body;
+    
+    if (!preferences || typeof preferences !== 'object') {
+      return res.status(400).json({
+        success: false,
+        error: 'Preferences object is required'
+      });
+    }
+
+    // Ensure system is initialized
+    if (!systemInitialized) {
+      await initializeF1System();
+    }
+
+    await f1StateGraph.setUserPreferences(userId, preferences);
+    
+    res.json({
+      success: true,
+      data: {
+        userId,
+        preferences,
+        updated: true
+      }
+    });
+
+  } catch (error) {
+    console.error('Set user preferences error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to set user preferences',
+      message: error.message
+    });
+  }
+});
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error('Server error:', err);
