@@ -26,6 +26,7 @@
     "@langchain/core": "^0.3.61",
     "@langchain/langgraph": "^0.2.74",
     "@langchain/openai": "^0.5.11",
+    "axios": "^1.10.0",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
     "express": "^5.1.0",

@@ -285,8 +285,8 @@ export const compareSeasonsToolLangGraph = tool(
 
 // Export all tools as an array for easy use
 export const allF1Tools = [
-  getCircuitsToolLangGraph,
-  getCircuitDetailsToolLangGraph,
+  getCircuitsTool,
+  getCircuitDetailsTool,
   getCircuitResultsToolLangGraph,
   getDriversToolLangGraph,
   getDriverDetailsToolLangGraph,
@@ -307,8 +307,8 @@ export const allF1Tools = [
 
 // Export tools by category for agent-specific use
 export const circuitToolsLangGraph = [
-  getCircuitsToolLangGraph,
-  getCircuitDetailsToolLangGraph,
+  getCircuitsTool,
+  getCircuitDetailsTool,
   getCircuitResultsToolLangGraph
 ];
 
