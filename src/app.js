@@ -63,9 +63,26 @@ class F1App {
   }
 
   setupMiddleware() {
-    // CORS
+    // CORS - Support F1 Client and development environments
+    const allowedOrigins = [
+      'http://localhost:5173', // F1 Client dev
+      'http://localhost:3000', // Legacy
+      'https://f1-client-ui.onrender.com', // F1 Client production
+      ...(process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : [])
+    ];
+
     this.app.use(cors({
-      origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+      origin: function (origin, callback) {
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin) return callback(null, true);
+        
+        if (allowedOrigins.indexOf(origin) !== -1) {
+          callback(null, true);
+        } else {
+          console.log('CORS blocked origin:', origin);
+          callback(new Error('Not allowed by CORS'));
+        }
+      },
       credentials: true
     }));
 
@@ -186,10 +203,99 @@ class F1App {
     // Get agent info
     this.app.get('/agents', (req, res) => {
       res.json({
-        agents: Object.keys(this.agents),
+        available: Object.keys(this.agents).concat(['multiAgent']),
+        details: {
+          multiAgent: {
+            name: 'AI Orchestrator',
+            description: 'Intelligent routing to best agent (Recommended)',
+            icon: '🎯'
+          },
+          raceResults: {
+            name: 'Race Results',
+            description: 'Race outcome analysis and insights',
+            icon: '🏁'
+          },
+          circuit: {
+            name: 'Circuit Analysis',
+            description: 'Circuit-specific data and track insights',
+            icon: '🏎️'
+          },
+          driver: {
+            name: 'Driver Performance',
+            description: 'Individual driver performance and statistics',
+            icon: '👨‍🏎️'
+          },
+          constructor: {
+            name: 'Constructor Analysis',
+            description: 'Team/constructor performance analysis',
+            icon: '🏭'
+          },
+          championship: {
+            name: 'Championship Predictor',
+            description: 'Championship standings and predictions',
+            icon: '🏆'
+          },
+          historical: {
+            name: 'Historical Comparison',
+            description: 'Historical data analysis and comparisons',
+            icon: '📊'
+          }
+        },
         capabilities: agentFactory.getAgentCapabilities(),
         workflow: this.workflow.getWorkflowVisualization()
       });
+    });
+
+    // F1 Client compatibility endpoint - maps to workflow execution
+    this.app.post('/agents/analyze', async (req, res) => {
+      try {
+        const { query, agentId, ...options } = req.body;
+
+        if (!query) {
+          return res.status(400).json({
+            error: 'Query is required',
+            message: 'Please provide a query parameter'
+          });
+        }
+
+        console.log(`[F1App] F1 Client compatibility - Agent: ${agentId || 'multiAgent'}, Query: "${query}"`);
+
+        // Initialize state for workflow
+        const initialState = {
+          query,
+          threadId: options.threadId || `f1_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+          userContext: options.userContext || {},
+          preferredAgent: agentId // Pass preferred agent to workflow
+        };
+
+        // Execute workflow
+        const result = await this.workflow.execute(initialState);
+
+        // Format response to match F1 Client expectations
+        res.json({
+          response: result.agentResponse,
+          result: {
+            finalResponse: result.agentResponse
+          },
+          metadata: {
+            agentsUsed: [result.selectedAgent],
+            queryType: result.metadata?.queryType || 'f1_analysis',
+            confidence: result.confidence || 0.85
+          },
+          processingTime: result.metadata?.processingTime || 0,
+          confidence: result.confidence || 0.85,
+          agentUsed: result.selectedAgent,
+          threadId: result.threadId
+        });
+
+      } catch (error) {
+        console.error('[F1App] F1 Client compatibility endpoint error:', error);
+        res.status(500).json({
+          error: 'Internal server error',
+          message: 'Failed to process F1 query',
+          details: error.message
+        });
+      }
     });
 
     // Test endpoint for Monaco -> "this year" flow
