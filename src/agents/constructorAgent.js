@@ -21,28 +21,66 @@ export class ConstructorAnalysisAgent extends BaseF1Agent {
     }
 
     // Fallback prompt
-    return `You are the F1 Constructor Analysis Agent. 
-    
-You have access to F1 API tools that can fetch:
-- Constructor championship standings and points
-- Team performance metrics and race results
-- Constructor history and achievements
-- Technical regulation impact analysis
+    return `You are the F1 Constructor Analysis Agent with access to real F1 constructor data tools.
 
-When users ask about teams without specifying context, use conversation history to understand their intent.
+TOOLS AVAILABLE:
+- get_constructors: Get F1 constructors/teams data for a season
+- get_constructor_details: Get detailed information about a specific constructor
+- get_constructor_results: Get race results for a specific constructor
+- get_constructor_standings: Get constructor championship standings
 
-Provide strategic, data-driven analysis based only on the API responses you receive.`;
+INSTRUCTIONS:
+1. ALWAYS use the available tools to fetch real F1 constructor data
+2. For current year queries ("this year", "2025"), use season="2025"
+3. For team information queries, use get_constructor_details with the constructor identifier
+4. For team race results, use get_constructor_results
+5. For championship standings, use get_constructor_standings
+6. For season constructor lists, use get_constructors
+7. NEVER give generic responses - always call tools first
+
+YEAR INTERPRETATION:
+- "this year" = 2025 (current year)
+- "current season" = 2025
+- "last year" = 2024
+- Specific years like "2023" = use that exact year
+
+CONSTRUCTOR ANALYSIS EXPERTISE:
+• Constructor championship standings and points
+• Team performance metrics and race results
+• Constructor history and achievements
+• Technical regulation impact analysis
+• Team strategy and development patterns
+• Constructor vs driver performance correlation
+
+FORMATTING GUIDELINES:
+- Use clean, structured responses with NO markdown formatting
+- NEVER use asterisks (**) for bold text or emphasis
+- NEVER use hashtags (###) for headers
+- NEVER use hyphens (-) for bullet points
+- Use plain text with simple colons (:) for labels
+- Use simple headings like "McLaren:" or "Red Bull Racing:"
+- Present team data in simple lines without special characters
+- Use proper spacing and line breaks for readability
+- Format should be UI-friendly and clean for display
+
+When users ask about teams/constructors, use the appropriate tools to fetch current data and provide strategic, data-driven analysis with clean formatting.`;
   }
 
   // Constructor-specific analysis methods
   async analyzeConstructor(constructorId) {
     try {
-      const [constructorDetails, constructorResults, constructorWins, constructorStandings, constructorDrivers] = await Promise.all([
+      const [
+        constructorDetails,
+        constructorResults,
+        constructorWins,
+        constructorStandings,
+        constructorDrivers,
+      ] = await Promise.all([
         this.constructorTools.getConstructorById(constructorId),
         this.constructorTools.getConstructorResults(constructorId, 30),
         this.constructorTools.getConstructorWins(constructorId),
         this.constructorTools.getConstructorStandings(constructorId),
-        this.constructorTools.getConstructorDrivers(constructorId)
+        this.constructorTools.getConstructorDrivers(constructorId),
       ]);
 
       return {
@@ -51,7 +89,12 @@ Provide strategic, data-driven analysis based only on the API responses you rece
         wins: constructorWins,
         standings: constructorStandings,
         drivers: constructorDrivers,
-        analysis: this.generateConstructorAnalysis(constructorDetails, constructorResults, constructorWins, constructorStandings)
+        analysis: this.generateConstructorAnalysis(
+          constructorDetails,
+          constructorResults,
+          constructorWins,
+          constructorStandings,
+        ),
       };
     } catch (error) {
       console.error(`Error analyzing constructor ${constructorId}:`, error);
@@ -62,12 +105,12 @@ Provide strategic, data-driven analysis based only on the API responses you rece
   async compareConstructors(constructorIds) {
     try {
       const constructorData = await Promise.all(
-        constructorIds.map(id => this.analyzeConstructor(id))
+        constructorIds.map((id) => this.analyzeConstructor(id)),
       );
 
       return {
         constructors: constructorData,
-        comparison: this.generateConstructorComparison(constructorData)
+        comparison: this.generateConstructorComparison(constructorData),
       };
     } catch (error) {
       console.error('Error comparing constructors:', error);
@@ -77,11 +120,16 @@ Provide strategic, data-driven analysis based only on the API responses you rece
 
   async analyzeConstructorSeason(constructorId, season) {
     try {
-      const [seasonResults, seasonStandings, seasonDrivers] = await Promise.all([
-        this.constructorTools.getConstructorSeasonResults(constructorId, season),
-        this.constructorTools.getConstructorStandings(constructorId, season),
-        this.constructorTools.getConstructorDrivers(constructorId, season)
-      ]);
+      const [seasonResults, seasonStandings, seasonDrivers] = await Promise.all(
+        [
+          this.constructorTools.getConstructorSeasonResults(
+            constructorId,
+            season,
+          ),
+          this.constructorTools.getConstructorStandings(constructorId, season),
+          this.constructorTools.getConstructorDrivers(constructorId, season),
+        ],
+      );
 
       return {
         constructorId,
@@ -89,25 +137,36 @@ Provide strategic, data-driven analysis based only on the API responses you rece
         results: seasonResults,
         standings: seasonStandings,
         drivers: seasonDrivers,
-        seasonAnalysis: this.generateSeasonAnalysis(seasonResults, seasonStandings, seasonDrivers)
+        seasonAnalysis: this.generateSeasonAnalysis(
+          seasonResults,
+          seasonStandings,
+          seasonDrivers,
+        ),
       };
     } catch (error) {
-      console.error(`Error analyzing constructor ${constructorId} season ${season}:`, error);
+      console.error(
+        `Error analyzing constructor ${constructorId} season ${season}:`,
+        error,
+      );
       throw error;
     }
   }
 
   async analyzeConstructorChampionships(constructorId) {
     try {
-      const championships = await this.constructorTools.getConstructorChampionships(constructorId);
+      const championships =
+        await this.constructorTools.getConstructorChampionships(constructorId);
 
       return {
         constructorId,
         championships,
-        analysis: this.generateChampionshipAnalysis(championships)
+        analysis: this.generateChampionshipAnalysis(championships),
       };
     } catch (error) {
-      console.error(`Error analyzing constructor ${constructorId} championships:`, error);
+      console.error(
+        `Error analyzing constructor ${constructorId} championships:`,
+        error,
+      );
       throw error;
     }
   }
@@ -117,10 +176,12 @@ Provide strategic, data-driven analysis based only on the API responses you rece
     try {
       // Extract constructor information from query
       const constructorInfo = this.extractConstructorFromQuery(query);
-      
+
       if (constructorInfo.constructorId) {
         // Fetch relevant constructor data
-        const constructorData = await this.analyzeConstructor(constructorInfo.constructorId);
+        const constructorData = await this.analyzeConstructor(
+          constructorInfo.constructorId,
+        );
         context.f1Data = { ...context.f1Data, ...constructorData };
       }
 
@@ -135,26 +196,26 @@ Provide strategic, data-driven analysis based only on the API responses you rece
   // Helper methods
   extractConstructorFromQuery(query) {
     const constructorMappings = {
-      'mercedes': 'mercedes',
+      mercedes: 'mercedes',
       'red bull': 'red_bull',
-      'redbull': 'red_bull',
-      'ferrari': 'ferrari',
-      'mclaren': 'mclaren',
-      'alpine': 'alpine',
+      redbull: 'red_bull',
+      ferrari: 'ferrari',
+      mclaren: 'mclaren',
+      alpine: 'alpine',
       'aston martin': 'aston_martin',
-      'williams': 'williams',
+      williams: 'williams',
       'alfa romeo': 'alfa',
-      'alphatauri': 'alphatauri',
-      'haas': 'haas',
-      'renault': 'renault',
+      alphatauri: 'alphatauri',
+      haas: 'haas',
+      renault: 'renault',
       'force india': 'force_india',
       'racing point': 'racing_point',
-      'lotus': 'lotus',
-      'brawn': 'brawn',
-      'toyota': 'toyota',
-      'bmw': 'bmw_sauber',
-      'jordan': 'jordan',
-      'minardi': 'minardi'
+      lotus: 'lotus',
+      brawn: 'brawn',
+      toyota: 'toyota',
+      bmw: 'bmw_sauber',
+      jordan: 'jordan',
+      minardi: 'minardi',
     };
 
     const queryLower = query.toLowerCase();
@@ -174,12 +235,12 @@ Provide strategic, data-driven analysis based only on the API responses you rece
       basicInfo: {
         name: constructor.name,
         nationality: constructor.nationality,
-        url: constructor.url
+        url: constructor.url,
       },
       performance: this.calculateConstructorStats(results, wins, standings),
       competitiveness: this.analyzeCompetitiveness(results, standings),
       achievements: this.categorizeAchievements(wins, standings),
-      eras: this.analyzePerformanceByEra(standings)
+      eras: this.analyzePerformanceByEra(standings),
     };
 
     return analysis;
@@ -192,31 +253,40 @@ Provide strategic, data-driven analysis based only on the API responses you rece
     const poles = this.countConstructorPoles(results);
 
     // Calculate championship positions
-    const championshipPositions = standings.map(standing => 
-      standing.ConstructorStandings?.[0]?.position
-    ).filter(pos => pos).map(pos => parseInt(pos));
+    const championshipPositions = standings
+      .map((standing) => standing.ConstructorStandings?.[0]?.position)
+      .filter((pos) => pos)
+      .map((pos) => parseInt(pos));
 
-    const avgChampionshipPosition = championshipPositions.length > 0 
-      ? (championshipPositions.reduce((sum, pos) => sum + pos, 0) / championshipPositions.length).toFixed(1)
-      : 'N/A';
+    const avgChampionshipPosition =
+      championshipPositions.length > 0
+        ? (
+            championshipPositions.reduce((sum, pos) => sum + pos, 0) /
+            championshipPositions.length
+          ).toFixed(1)
+        : 'N/A';
 
     return {
       totalRaces,
       totalWins,
       podiums,
       poles,
-      championships: standings.filter(s => s.ConstructorStandings?.[0]?.position === '1').length,
+      championships: standings.filter(
+        (s) => s.ConstructorStandings?.[0]?.position === '1',
+      ).length,
       avgChampionshipPosition,
-      winRate: totalRaces > 0 ? ((totalWins / totalRaces) * 100).toFixed(1) : '0.0',
-      podiumRate: totalRaces > 0 ? ((podiums / totalRaces) * 100).toFixed(1) : '0.0'
+      winRate:
+        totalRaces > 0 ? ((totalWins / totalRaces) * 100).toFixed(1) : '0.0',
+      podiumRate:
+        totalRaces > 0 ? ((podiums / totalRaces) * 100).toFixed(1) : '0.0',
     };
   }
 
   countConstructorPodiums(results) {
     let podiums = 0;
-    results.forEach(race => {
+    results.forEach((race) => {
       if (race.Results) {
-        race.Results.forEach(result => {
+        race.Results.forEach((result) => {
           if (result.position && parseInt(result.position) <= 3) {
             podiums++;
           }
@@ -228,9 +298,9 @@ Provide strategic, data-driven analysis based only on the API responses you rece
 
   countConstructorPoles(results) {
     let poles = 0;
-    results.forEach(race => {
+    results.forEach((race) => {
       if (race.Results) {
-        race.Results.forEach(result => {
+        race.Results.forEach((result) => {
           if (result.grid && parseInt(result.grid) === 1) {
             poles++;
           }
@@ -241,23 +311,25 @@ Provide strategic, data-driven analysis based only on the API responses you rece
   }
 
   analyzeCompetitiveness(results, standings) {
-    if (!standings || standings.length === 0) return 'No competitiveness data available';
+    if (!standings || standings.length === 0)
+      return 'No competitiveness data available';
 
     const recentStandings = standings.slice(0, 5);
     const positions = recentStandings
-      .map(s => s.ConstructorStandings?.[0]?.position)
-      .filter(pos => pos)
-      .map(pos => parseInt(pos));
+      .map((s) => s.ConstructorStandings?.[0]?.position)
+      .filter((pos) => pos)
+      .map((pos) => parseInt(pos));
 
     if (positions.length === 0) return 'Insufficient recent data';
 
-    const avgPosition = positions.reduce((sum, pos) => sum + pos, 0) / positions.length;
-    
+    const avgPosition =
+      positions.reduce((sum, pos) => sum + pos, 0) / positions.length;
+
     return {
       recentForm: this.assessConstructorForm(avgPosition),
       consistency: this.calculateConstructorConsistency(positions),
       trajectory: this.analyzeTrajectory(standings),
-      competitiveEras: this.identifyCompetitiveEras(standings)
+      competitiveEras: this.identifyCompetitiveEras(standings),
     };
   }
 
@@ -273,7 +345,9 @@ Provide strategic, data-driven analysis based only on the API responses you rece
     if (positions.length < 2) return 'Insufficient data';
 
     const avg = positions.reduce((sum, pos) => sum + pos, 0) / positions.length;
-    const variance = positions.reduce((sum, pos) => sum + Math.pow(pos - avg, 2), 0) / positions.length;
+    const variance =
+      positions.reduce((sum, pos) => sum + Math.pow(pos - avg, 2), 0) /
+      positions.length;
     const stdDev = Math.sqrt(variance);
 
     if (stdDev < 1) return 'Very Consistent';
@@ -283,16 +357,18 @@ Provide strategic, data-driven analysis based only on the API responses you rece
   }
 
   analyzeTrajectory(standings) {
-    if (standings.length < 3) return 'Insufficient data for trajectory analysis';
+    if (standings.length < 3)
+      return 'Insufficient data for trajectory analysis';
 
-    const recentPositions = standings.slice(0, 3)
-      .map(s => parseInt(s.ConstructorStandings?.[0]?.position))
-      .filter(pos => !isNaN(pos));
+    const recentPositions = standings
+      .slice(0, 3)
+      .map((s) => parseInt(s.ConstructorStandings?.[0]?.position))
+      .filter((pos) => !isNaN(pos));
 
     if (recentPositions.length < 3) return 'Insufficient position data';
 
     const trend = recentPositions[0] - recentPositions[2]; // Negative means improving
-    
+
     if (trend < -1) return 'Improving';
     if (trend > 1) return 'Declining';
     return 'Stable';
@@ -300,8 +376,8 @@ Provide strategic, data-driven analysis based only on the API responses you rece
 
   identifyCompetitiveEras(standings) {
     const championshipYears = standings
-      .filter(s => s.ConstructorStandings?.[0]?.position === '1')
-      .map(s => parseInt(s.season))
+      .filter((s) => s.ConstructorStandings?.[0]?.position === '1')
+      .map((s) => parseInt(s.season))
       .sort((a, b) => a - b);
 
     if (championshipYears.length === 0) return ['No championship eras'];
@@ -310,14 +386,14 @@ Provide strategic, data-driven analysis based only on the API responses you rece
     let currentEra = [championshipYears[0]];
 
     for (let i = 1; i < championshipYears.length; i++) {
-      if (championshipYears[i] - championshipYears[i-1] <= 2) {
+      if (championshipYears[i] - championshipYears[i - 1] <= 2) {
         currentEra.push(championshipYears[i]);
       } else {
         eras.push(this.formatEra(currentEra));
         currentEra = [championshipYears[i]];
       }
     }
-    
+
     if (currentEra.length > 0) {
       eras.push(this.formatEra(currentEra));
     }
@@ -331,30 +407,30 @@ Provide strategic, data-driven analysis based only on the API responses you rece
   }
 
   categorizeAchievements(wins, standings) {
-    const championships = standings.filter(s => 
-      s.ConstructorStandings?.[0]?.position === '1'
+    const championships = standings.filter(
+      (s) => s.ConstructorStandings?.[0]?.position === '1',
     ).length;
 
     const raceWins = wins.length;
-    
+
     return {
       championships,
       raceWins,
       firstWin: this.findFirstWin(wins),
       lastWin: this.findLastWin(wins),
-      mostSuccessfulPeriod: this.findMostSuccessfulPeriod(wins, standings)
+      mostSuccessfulPeriod: this.findMostSuccessfulPeriod(wins, standings),
     };
   }
 
   findFirstWin(wins) {
     if (wins.length === 0) return 'No wins recorded';
-    const years = wins.map(win => parseInt(win.season)).sort((a, b) => a - b);
+    const years = wins.map((win) => parseInt(win.season)).sort((a, b) => a - b);
     return years[0].toString();
   }
 
   findLastWin(wins) {
     if (wins.length === 0) return 'No wins recorded';
-    const years = wins.map(win => parseInt(win.season)).sort((a, b) => b - a);
+    const years = wins.map((win) => parseInt(win.season)).sort((a, b) => b - a);
     return years[0].toString();
   }
 
@@ -362,19 +438,20 @@ Provide strategic, data-driven analysis based only on the API responses you rece
     if (standings.length === 0) return 'Unable to determine';
 
     const championshipYears = standings
-      .filter(s => s.ConstructorStandings?.[0]?.position === '1')
-      .map(s => s.season);
+      .filter((s) => s.ConstructorStandings?.[0]?.position === '1')
+      .map((s) => s.season);
 
     if (championshipYears.length === 0) {
       // Find period with most wins
       const winsByDecade = {};
-      wins.forEach(win => {
+      wins.forEach((win) => {
         const decade = Math.floor(parseInt(win.season) / 10) * 10;
         winsByDecade[decade] = (winsByDecade[decade] || 0) + 1;
       });
 
-      const bestDecade = Object.entries(winsByDecade)
-        .sort(([,a], [,b]) => b - a)[0];
+      const bestDecade = Object.entries(winsByDecade).sort(
+        ([, a], [, b]) => b - a,
+      )[0];
 
       return bestDecade ? `${bestDecade[0]}s` : 'Unable to determine';
     }
@@ -391,34 +468,37 @@ Provide strategic, data-driven analysis based only on the API responses you rece
       '1990s': { start: 1990, end: 1999 },
       '2000s': { start: 2000, end: 2009 },
       '2010s': { start: 2010, end: 2019 },
-      '2020s': { start: 2020, end: 2029 }
+      '2020s': { start: 2020, end: 2029 },
     };
 
     const performance = {};
 
     Object.entries(eras).forEach(([era, range]) => {
-      const eraStandings = standings.filter(s => {
+      const eraStandings = standings.filter((s) => {
         const year = parseInt(s.season);
         return year >= range.start && year <= range.end;
       });
 
       if (eraStandings.length > 0) {
         const positions = eraStandings
-          .map(s => parseInt(s.ConstructorStandings?.[0]?.position))
-          .filter(pos => !isNaN(pos));
+          .map((s) => parseInt(s.ConstructorStandings?.[0]?.position))
+          .filter((pos) => !isNaN(pos));
 
-        const avgPosition = positions.length > 0 
-          ? (positions.reduce((sum, pos) => sum + pos, 0) / positions.length).toFixed(1)
-          : 'N/A';
+        const avgPosition =
+          positions.length > 0
+            ? (
+                positions.reduce((sum, pos) => sum + pos, 0) / positions.length
+              ).toFixed(1)
+            : 'N/A';
 
-        const championships = eraStandings.filter(s => 
-          s.ConstructorStandings?.[0]?.position === '1'
+        const championships = eraStandings.filter(
+          (s) => s.ConstructorStandings?.[0]?.position === '1',
         ).length;
 
         performance[era] = {
           averagePosition: avgPosition,
           championships,
-          seasons: eraStandings.length
+          seasons: eraStandings.length,
         };
       }
     });
@@ -429,16 +509,18 @@ Provide strategic, data-driven analysis based only on the API responses you rece
   generateConstructorComparison(constructorData) {
     return {
       totalConstructors: constructorData.length,
-      comparison: 'Detailed constructor comparison analysis would be generated here',
-      summary: `Comparing ${constructorData.length} constructors across performance metrics, championships, and competitive eras`
+      comparison:
+        'Detailed constructor comparison analysis would be generated here',
+      summary: `Comparing ${constructorData.length} constructors across performance metrics, championships, and competitive eras`,
     };
   }
 
   generateSeasonAnalysis(results, standings, drivers) {
     return {
-      summary: 'Season performance analysis based on results, standings, and driver lineup',
+      summary:
+        'Season performance analysis based on results, standings, and driver lineup',
       performance: 'Performance assessment for the specific season',
-      insights: 'Key insights about the constructor\'s season performance'
+      insights: "Key insights about the constructor's season performance",
     };
   }
 
@@ -446,7 +528,7 @@ Provide strategic, data-driven analysis based only on the API responses you rece
     return {
       summary: `Analysis of ${championships.length} constructor championships`,
       eras: 'Championship-winning eras and performance patterns',
-      legacy: 'Historical significance and competitive impact'
+      legacy: 'Historical significance and competitive impact',
     };
   }
 }

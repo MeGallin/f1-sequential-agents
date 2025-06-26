@@ -21,29 +21,93 @@ export class DriverPerformanceAgent extends BaseF1Agent {
     }
 
     // Fallback prompt
-    return `You are the F1 Driver Performance Agent. 
-    
-You have access to F1 API tools that can fetch:
-- Driver career statistics and performance data
-- Head-to-head comparisons between drivers
-- Driver standings and championship results
-- Circuit-specific driver performance
+    return `You are the F1 Driver Performance Agent with access to real F1 driver data tools.
 
-When users ask about drivers without specifying context, use conversation history to understand their intent.
+TOOLS AVAILABLE:
+- get_drivers: Get F1 drivers data for a season
+- get_driver_details: Get detailed information about a specific driver
+- get_driver_results: Get race results for a specific driver
+- get_driver_standings: Get driver championship standings
 
-Provide comprehensive, data-driven analysis based only on the API responses you receive.`;
+INSTRUCTIONS:
+1. ALWAYS use the available tools to fetch real F1 driver data
+2. For current year queries ("this year", "2025"), use season="2025"
+3. For driver information queries, use get_driver_details with the driver identifier
+4. For driver race results, use get_driver_results
+5. For championship standings, use get_driver_standings
+6. For season driver lists, use get_drivers
+7. NEVER give generic responses - always call tools first
+8. ALWAYS provide a comprehensive analysis after calling tools - never return empty responses
+9. When comparing drivers, analyze the tool results and provide detailed insights
+
+YEAR INTERPRETATION:
+- "this year" = 2025 (current year)
+- "current season" = 2025
+- "last year" = 2024
+- Specific years like "2023" = use that exact year
+
+DRIVER ANALYSIS EXPERTISE:
+• Career statistics and performance data
+• Head-to-head comparisons between drivers
+• Driver standings and championship results
+• Circuit-specific driver performance
+• Performance trends and development patterns
+• Qualifying vs race performance analysis
+
+FORMATTING GUIDELINES:
+- Use clean, structured responses with NO markdown formatting
+- NEVER use asterisks (**) for bold text or emphasis
+- NEVER use hashtags (###) for headers 
+- NEVER use hyphens (-) for bullet points
+- Use plain text with simple colons (:) for labels
+- Structure comparisons with driver names followed by colon like "Lando Norris:"
+- Present information in simple lines without special characters
+- Use proper spacing and line breaks for readability
+- Format should be UI-friendly and clean for display
+
+When users ask about drivers, use the appropriate tools to fetch current data and provide comprehensive, data-driven analysis with clean formatting.`;
   }
 
   // Driver-specific analysis methods
   async analyzeDriver(driverId) {
     try {
-      const [driverDetails, driverResults, driverWins, driverStandings, constructorHistory] = await Promise.all([
-        this.driverTools.getDriverById(driverId),
-        this.driverTools.getDriverResults(driverId, 30),
-        this.driverTools.getDriverWins(driverId),
-        this.driverTools.getDriverStandings(driverId),
-        this.driverTools.getDriverConstructorHistory(driverId)
-      ]);
+      // Sequential requests to avoid rate limiting
+      const driverDetails = await this.driverTools.getDriverById(driverId);
+      const driverResults = await this.driverTools.getDriverResults(
+        driverId,
+        30,
+      );
+
+      // Optional data - if these fail, continue with what we have
+      let driverWins = null;
+      let driverStandings = null;
+      let constructorHistory = null;
+
+      try {
+        driverWins = await this.driverTools.getDriverWins(driverId);
+      } catch (error) {
+        console.warn(`Could not fetch wins for ${driverId}:`, error.message);
+      }
+
+      try {
+        driverStandings = await this.driverTools.getDriverStandings(driverId);
+      } catch (error) {
+        console.warn(
+          `Could not fetch standings for ${driverId}:`,
+          error.message,
+        );
+      }
+
+      try {
+        constructorHistory = await this.driverTools.getDriverConstructorHistory(
+          driverId,
+        );
+      } catch (error) {
+        console.warn(
+          `Could not fetch constructor history for ${driverId}:`,
+          error.message,
+        );
+      }
 
       return {
         driver: driverDetails,
@@ -51,7 +115,12 @@ Provide comprehensive, data-driven analysis based only on the API responses you 
         wins: driverWins,
         standings: driverStandings,
         constructors: constructorHistory,
-        analysis: this.generateDriverAnalysis(driverDetails, driverResults, driverWins, driverStandings)
+        analysis: this.generateDriverAnalysis(
+          driverDetails,
+          driverResults,
+          driverWins,
+          driverStandings,
+        ),
       };
     } catch (error) {
       console.error(`Error analyzing driver ${driverId}:`, error);
@@ -62,12 +131,12 @@ Provide comprehensive, data-driven analysis based only on the API responses you 
   async compareDrivers(driverIds) {
     try {
       const driverData = await Promise.all(
-        driverIds.map(id => this.analyzeDriver(id))
+        driverIds.map((id) => this.analyzeDriver(id)),
       );
 
       return {
         drivers: driverData,
-        comparison: this.generateDriverComparison(driverData)
+        comparison: this.generateDriverComparison(driverData),
       };
     } catch (error) {
       console.error('Error comparing drivers:', error);
@@ -77,11 +146,12 @@ Provide comprehensive, data-driven analysis based only on the API responses you 
 
   async analyzeDriverSeason(driverId, season) {
     try {
-      const [seasonResults, seasonStandings, qualifyingResults] = await Promise.all([
-        this.driverTools.getDriverSeasonResults(driverId, season),
-        this.driverTools.getDriverStandings(driverId, season),
-        this.driverTools.getDriverQualifyingResults(driverId, season)
-      ]);
+      const [seasonResults, seasonStandings, qualifyingResults] =
+        await Promise.all([
+          this.driverTools.getDriverSeasonResults(driverId, season),
+          this.driverTools.getDriverStandings(driverId, season),
+          this.driverTools.getDriverQualifyingResults(driverId, season),
+        ]);
 
       return {
         driverId,
@@ -89,26 +159,37 @@ Provide comprehensive, data-driven analysis based only on the API responses you 
         results: seasonResults,
         standings: seasonStandings,
         qualifying: qualifyingResults,
-        seasonAnalysis: this.generateSeasonAnalysis(seasonResults, seasonStandings, qualifyingResults)
+        seasonAnalysis: this.generateSeasonAnalysis(
+          seasonResults,
+          seasonStandings,
+          qualifyingResults,
+        ),
       };
     } catch (error) {
-      console.error(`Error analyzing driver ${driverId} season ${season}:`, error);
+      console.error(
+        `Error analyzing driver ${driverId} season ${season}:`,
+        error,
+      );
       throw error;
     }
   }
 
   async analyzeDriverCircuitPerformance(driverId, circuitId) {
     try {
-      const circuitPerformance = await this.driverTools.getDriverCircuitPerformance(driverId, circuitId);
+      const circuitPerformance =
+        await this.driverTools.getDriverCircuitPerformance(driverId, circuitId);
 
       return {
         driverId,
         circuitId,
         performance: circuitPerformance,
-        analysis: this.generateCircuitPerformanceAnalysis(circuitPerformance)
+        analysis: this.generateCircuitPerformanceAnalysis(circuitPerformance),
       };
     } catch (error) {
-      console.error(`Error analyzing driver ${driverId} at circuit ${circuitId}:`, error);
+      console.error(
+        `Error analyzing driver ${driverId} at circuit ${circuitId}:`,
+        error,
+      );
       throw error;
     }
   }
@@ -118,7 +199,7 @@ Provide comprehensive, data-driven analysis based only on the API responses you 
     try {
       // Extract driver information from query
       const driverInfo = this.extractDriverFromQuery(query);
-      
+
       if (driverInfo.driverId) {
         // Fetch relevant driver data
         const driverData = await this.analyzeDriver(driverInfo.driverId);
@@ -136,21 +217,21 @@ Provide comprehensive, data-driven analysis based only on the API responses you 
   // Helper methods
   extractDriverFromQuery(query) {
     const driverMappings = {
-      'hamilton': 'hamilton',
-      'verstappen': 'max_verstappen',
-      'leclerc': 'leclerc',
-      'russell': 'russell',
-      'norris': 'norris',
-      'sainz': 'sainz',
-      'alonso': 'alonso',
-      'vettel': 'vettel',
-      'schumacher': 'michael_schumacher',
-      'senna': 'senna',
-      'prost': 'prost',
-      'lauda': 'lauda',
-      'stewart': 'stewart',
-      'clark': 'clark',
-      'fangio': 'fangio'
+      hamilton: 'hamilton',
+      verstappen: 'max_verstappen',
+      leclerc: 'leclerc',
+      russell: 'russell',
+      norris: 'norris',
+      sainz: 'sainz',
+      alonso: 'alonso',
+      vettel: 'vettel',
+      schumacher: 'michael_schumacher',
+      senna: 'senna',
+      prost: 'prost',
+      lauda: 'lauda',
+      stewart: 'stewart',
+      clark: 'clark',
+      fangio: 'fangio',
     };
 
     const queryLower = query.toLowerCase();
@@ -172,11 +253,11 @@ Provide comprehensive, data-driven analysis based only on the API responses you 
         nationality: driver.nationality,
         birthDate: driver.dateOfBirth,
         permanentNumber: driver.permanentNumber,
-        url: driver.url
+        url: driver.url,
       },
       careerStats: this.calculateCareerStats(results, wins, standings),
       performance: this.analyzePerformancePatterns(results),
-      achievements: this.categorizeAchievements(wins, standings)
+      achievements: this.categorizeAchievements(wins, standings),
     };
 
     return analysis;
@@ -195,33 +276,36 @@ Provide comprehensive, data-driven analysis based only on the API responses you 
       podiums,
       poles,
       fastestLaps,
-      winRate: totalRaces > 0 ? ((totalWins / totalRaces) * 100).toFixed(1) : '0.0',
-      podiumRate: totalRaces > 0 ? ((podiums / totalRaces) * 100).toFixed(1) : '0.0'
+      winRate:
+        totalRaces > 0 ? ((totalWins / totalRaces) * 100).toFixed(1) : '0.0',
+      podiumRate:
+        totalRaces > 0 ? ((podiums / totalRaces) * 100).toFixed(1) : '0.0',
     };
   }
 
   countPodiums(results) {
-    return results.filter(race => {
+    return results.filter((race) => {
       const position = race.Results?.[0]?.position;
       return position && parseInt(position) <= 3;
     }).length;
   }
 
   countPoles(results) {
-    return results.filter(race => {
+    return results.filter((race) => {
       const grid = race.Results?.[0]?.grid;
       return grid && parseInt(grid) === 1;
     }).length;
   }
 
   countFastestLaps(results) {
-    return results.filter(race => {
+    return results.filter((race) => {
       return race.Results?.[0]?.FastestLap?.rank === '1';
     }).length;
   }
 
   analyzePerformancePatterns(results) {
-    if (!results || results.length === 0) return 'No performance data available';
+    if (!results || results.length === 0)
+      return 'No performance data available';
 
     const recentResults = results.slice(0, 10);
     const avgPosition = this.calculateAveragePosition(recentResults);
@@ -232,34 +316,36 @@ Provide comprehensive, data-driven analysis based only on the API responses you 
       averagePosition: avgPosition,
       consistency: consistency,
       strengths: this.identifyStrengths(results),
-      weaknesses: this.identifyWeaknesses(results)
+      weaknesses: this.identifyWeaknesses(results),
     };
   }
 
   calculateAveragePosition(results) {
     const positions = results
-      .map(race => race.Results?.[0]?.position)
-      .filter(pos => pos && pos !== 'NC')
-      .map(pos => parseInt(pos))
-      .filter(pos => !isNaN(pos));
+      .map((race) => race.Results?.[0]?.position)
+      .filter((pos) => pos && pos !== 'NC')
+      .map((pos) => parseInt(pos))
+      .filter((pos) => !isNaN(pos));
 
     if (positions.length === 0) return 'N/A';
-    
+
     const avg = positions.reduce((sum, pos) => sum + pos, 0) / positions.length;
     return avg.toFixed(1);
   }
 
   calculateConsistency(results) {
     const positions = results
-      .map(race => race.Results?.[0]?.position)
-      .filter(pos => pos && pos !== 'NC')
-      .map(pos => parseInt(pos))
-      .filter(pos => !isNaN(pos));
+      .map((race) => race.Results?.[0]?.position)
+      .filter((pos) => pos && pos !== 'NC')
+      .map((pos) => parseInt(pos))
+      .filter((pos) => !isNaN(pos));
 
     if (positions.length < 2) return 'Insufficient data';
 
     const avg = positions.reduce((sum, pos) => sum + pos, 0) / positions.length;
-    const variance = positions.reduce((sum, pos) => sum + Math.pow(pos - avg, 2), 0) / positions.length;
+    const variance =
+      positions.reduce((sum, pos) => sum + Math.pow(pos - avg, 2), 0) /
+      positions.length;
     const stdDev = Math.sqrt(variance);
 
     if (stdDev < 2) return 'Very High';
@@ -269,16 +355,19 @@ Provide comprehensive, data-driven analysis based only on the API responses you 
   }
 
   assessRecentForm(results) {
-    const recentPositions = results.slice(0, 5)
-      .map(race => race.Results?.[0]?.position)
-      .filter(pos => pos && pos !== 'NC')
-      .map(pos => parseInt(pos))
-      .filter(pos => !isNaN(pos));
+    const recentPositions = results
+      .slice(0, 5)
+      .map((race) => race.Results?.[0]?.position)
+      .filter((pos) => pos && pos !== 'NC')
+      .map((pos) => parseInt(pos))
+      .filter((pos) => !isNaN(pos));
 
     if (recentPositions.length === 0) return 'No recent data';
 
-    const avgRecent = recentPositions.reduce((sum, pos) => sum + pos, 0) / recentPositions.length;
-    
+    const avgRecent =
+      recentPositions.reduce((sum, pos) => sum + pos, 0) /
+      recentPositions.length;
+
     if (avgRecent <= 3) return 'Excellent';
     if (avgRecent <= 6) return 'Good';
     if (avgRecent <= 10) return 'Average';
@@ -289,92 +378,101 @@ Provide comprehensive, data-driven analysis based only on the API responses you 
     // Simplified strength identification
     const podiums = this.countPodiums(results);
     const totalRaces = results.length;
-    
+
     if (totalRaces === 0) return ['Insufficient data'];
 
     const strengths = [];
-    
-    if ((podiums / totalRaces) > 0.3) strengths.push('Podium Finisher');
-    if (this.countPoles(results) > totalRaces * 0.2) strengths.push('Qualifying Specialist');
-    if (this.countFastestLaps(results) > totalRaces * 0.1) strengths.push('Pace Setter');
-    
+
+    if (podiums / totalRaces > 0.3) strengths.push('Podium Finisher');
+    if (this.countPoles(results) > totalRaces * 0.2)
+      strengths.push('Qualifying Specialist');
+    if (this.countFastestLaps(results) > totalRaces * 0.1)
+      strengths.push('Pace Setter');
+
     return strengths.length > 0 ? strengths : ['Developing talent'];
   }
 
   identifyWeaknesses(results) {
     // Simplified weakness identification
-    const dnfs = results.filter(race => {
+    const dnfs = results.filter((race) => {
       const status = race.Results?.[0]?.status;
       return status && !status.includes('Finished') && !status.includes('+');
     }).length;
 
     const totalRaces = results.length;
-    
+
     if (totalRaces === 0) return ['Insufficient data'];
 
     const weaknesses = [];
-    
-    if ((dnfs / totalRaces) > 0.2) weaknesses.push('Reliability Issues');
-    if (this.calculateAveragePosition(results) > 12) weaknesses.push('Consistency');
-    
+
+    if (dnfs / totalRaces > 0.2) weaknesses.push('Reliability Issues');
+    if (this.calculateAveragePosition(results) > 12)
+      weaknesses.push('Consistency');
+
     return weaknesses.length > 0 ? weaknesses : ['Well-rounded performance'];
   }
 
   categorizeAchievements(wins, standings) {
-    const championships = standings.filter(standing => 
-      standing.DriverStandings?.[0]?.position === '1'
+    const championships = standings.filter(
+      (standing) => standing.DriverStandings?.[0]?.position === '1',
     ).length;
 
     return {
       championships,
       raceWins: wins.length,
       careerSpan: this.calculateCareerSpan(wins, standings),
-      peakPeriod: this.identifyPeakPeriod(wins)
+      peakPeriod: this.identifyPeakPeriod(wins),
     };
   }
 
   calculateCareerSpan(wins, standings) {
     const allSeasons = [
-      ...wins.map(win => parseInt(win.season)),
-      ...standings.map(standing => parseInt(standing.season))
-    ].filter(season => !isNaN(season));
+      ...wins.map((win) => parseInt(win.season)),
+      ...standings.map((standing) => parseInt(standing.season)),
+    ].filter((season) => !isNaN(season));
 
     if (allSeasons.length === 0) return 'Unknown';
 
     const firstSeason = Math.min(...allSeasons);
     const lastSeason = Math.max(...allSeasons);
 
-    return `${firstSeason}-${lastSeason} (${lastSeason - firstSeason + 1} seasons)`;
+    return `${firstSeason}-${lastSeason} (${
+      lastSeason - firstSeason + 1
+    } seasons)`;
   }
 
   identifyPeakPeriod(wins) {
     if (wins.length === 0) return 'No wins recorded';
 
     const winsByYear = {};
-    wins.forEach(win => {
+    wins.forEach((win) => {
       const year = win.season;
       winsByYear[year] = (winsByYear[year] || 0) + 1;
     });
 
-    const bestYear = Object.entries(winsByYear)
-      .sort(([,a], [,b]) => b - a)[0];
+    const bestYear = Object.entries(winsByYear).sort(
+      ([, a], [, b]) => b - a,
+    )[0];
 
-    return bestYear ? `${bestYear[0]} (${bestYear[1]} wins)` : 'Unable to determine';
+    return bestYear
+      ? `${bestYear[0]} (${bestYear[1]} wins)`
+      : 'Unable to determine';
   }
 
   generateDriverComparison(driverData) {
     return {
       totalDrivers: driverData.length,
       comparison: 'Detailed driver comparison analysis would be generated here',
-      summary: `Comparing ${driverData.length} drivers across career statistics, performance metrics, and achievements`
+      summary: `Comparing ${driverData.length} drivers across career statistics, performance metrics, and achievements`,
     };
   }
 
   generateSeasonAnalysis(results, standings, qualifying) {
     return {
-      summary: 'Season performance analysis based on race results, standings, and qualifying data',
+      summary:
+        'Season performance analysis based on race results, standings, and qualifying data',
       performance: 'Performance trends and highlights from the season',
-      insights: 'Key insights about the driver\'s season performance'
+      insights: "Key insights about the driver's season performance",
     };
   }
 
@@ -382,7 +480,7 @@ Provide comprehensive, data-driven analysis based only on the API responses you 
     return {
       summary: 'Circuit-specific performance analysis',
       strengths: 'Identified strengths at this circuit',
-      patterns: 'Performance patterns and trends at this venue'
+      patterns: 'Performance patterns and trends at this venue',
     };
   }
 }

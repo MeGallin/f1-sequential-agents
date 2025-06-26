@@ -10,7 +10,26 @@ export class CircuitAnalysisAgent extends BaseF1Agent {
 
   // Enhanced system prompt for circuit analysis
   getSystemPrompt() {
-    return `${super.getSystemPrompt()}
+    return `You are the F1 Circuit Analysis Agent with access to real F1 circuit data tools.
+
+TOOLS AVAILABLE:
+- get_circuits: Get F1 circuits data for a season
+- get_circuit_details: Get detailed information about a specific circuit
+- get_circuit_results: Get historical race results for a specific circuit
+
+INSTRUCTIONS:
+1. ALWAYS use the available tools to fetch real F1 circuit data
+2. For current year queries ("this year", "2025"), use season="2025"
+3. For circuit information queries, use get_circuit_details with the circuit identifier
+4. For historical results at a circuit, use get_circuit_results
+5. For season circuit lists, use get_circuits
+6. NEVER give generic responses - always call tools first
+
+YEAR INTERPRETATION:
+- "this year" = 2025 (current year)
+- "current season" = 2025
+- "last year" = 2024
+- Specific years like "2023" = use that exact year
 
 CIRCUIT ANALYSIS EXPERTISE:
 You are the premier expert on Formula 1 circuits, track characteristics, and circuit-specific performance analysis.
@@ -32,13 +51,23 @@ ANALYSIS CAPABILITIES:
 • Predict performance based on circuit characteristics
 
 RESPONSE STRUCTURE FOR CIRCUIT QUERIES:
-1. **Circuit Overview**: Basic specifications and key characteristics
-2. **Technical Analysis**: Layout, corners, straights, elevation
-3. **Performance Data**: Lap records, sector times, historical trends
-4. **Racing Dynamics**: Overtaking opportunities, strategy considerations
-5. **Key Insights**: Notable patterns, records, or unique features
+1. Circuit Overview: Basic specifications and key characteristics
+2. Technical Analysis: Layout, corners, straights, elevation
+3. Performance Data: Lap records, sector times, historical trends
+4. Racing Dynamics: Overtaking opportunities, strategy considerations
+5. Key Insights: Notable patterns, records, or unique features
 
-Always reference specific data points, years, and provide comparative analysis when relevant.`;
+FORMATTING GUIDELINES:
+- Use clean, structured responses with NO markdown formatting
+- NEVER use asterisks (**) for bold text or emphasis
+- NEVER use hashtags (###) for headers
+- NEVER use hyphens (-) for bullet points
+- Use plain text with simple colons (:) for labels
+- Present circuit information in simple lines without special characters
+- Use proper spacing and line breaks for readability
+- Format should be UI-friendly and clean for display
+
+Always reference specific data points, years, and provide comparative analysis with clean formatting.`;
   }
 
   // Circuit-specific analysis methods
@@ -47,14 +76,18 @@ Always reference specific data points, years, and provide comparative analysis w
       const [circuitDetails, circuitResults, lapRecords] = await Promise.all([
         this.circuitTools.getCircuitById(circuitId),
         this.circuitTools.getCircuitResults(circuitId, 10),
-        this.circuitTools.getCircuitLapRecords(circuitId)
+        this.circuitTools.getCircuitLapRecords(circuitId),
       ]);
 
       return {
         circuit: circuitDetails,
         recentResults: circuitResults,
         lapRecords: lapRecords,
-        analysis: this.generateCircuitAnalysis(circuitDetails, circuitResults, lapRecords)
+        analysis: this.generateCircuitAnalysis(
+          circuitDetails,
+          circuitResults,
+          lapRecords,
+        ),
       };
     } catch (error) {
       console.error(`Error analyzing circuit ${circuitId}:`, error);
@@ -65,12 +98,12 @@ Always reference specific data points, years, and provide comparative analysis w
   async compareCircuits(circuitIds) {
     try {
       const circuitData = await Promise.all(
-        circuitIds.map(id => this.analyzeCircuit(id))
+        circuitIds.map((id) => this.analyzeCircuit(id)),
       );
 
       return {
         circuits: circuitData,
-        comparison: this.generateCircuitComparison(circuitData)
+        comparison: this.generateCircuitComparison(circuitData),
       };
     } catch (error) {
       console.error('Error comparing circuits:', error);
@@ -83,7 +116,7 @@ Always reference specific data points, years, and provide comparative analysis w
       const [seasonResults, qualifyingData] = await Promise.all([
         this.circuitTools.getCircuitResults(circuitId, 20),
         // Note: Would need qualifying data for complete analysis
-        this.circuitTools.getCircuitWinners(circuitId, 10)
+        this.circuitTools.getCircuitWinners(circuitId, 10),
       ]);
 
       return {
@@ -91,10 +124,16 @@ Always reference specific data points, years, and provide comparative analysis w
         season,
         results: seasonResults,
         winners: qualifyingData,
-        performanceAnalysis: this.generatePerformanceAnalysis(seasonResults, qualifyingData)
+        performanceAnalysis: this.generatePerformanceAnalysis(
+          seasonResults,
+          qualifyingData,
+        ),
       };
     } catch (error) {
-      console.error(`Error analyzing circuit performance for ${circuitId}:`, error);
+      console.error(
+        `Error analyzing circuit performance for ${circuitId}:`,
+        error,
+      );
       throw error;
     }
   }
@@ -104,7 +143,7 @@ Always reference specific data points, years, and provide comparative analysis w
     try {
       // Extract circuit information from query
       const circuitInfo = this.extractCircuitFromQuery(query);
-      
+
       if (circuitInfo.circuitId) {
         // Fetch relevant circuit data
         const circuitData = await this.analyzeCircuit(circuitInfo.circuitId);
@@ -122,21 +161,21 @@ Always reference specific data points, years, and provide comparative analysis w
   // Helper methods
   extractCircuitFromQuery(query) {
     const circuitMappings = {
-      'silverstone': 'silverstone',
-      'monaco': 'monaco',
-      'spa': 'spa',
-      'monza': 'monza',
-      'interlagos': 'interlagos',
-      'suzuka': 'suzuka',
-      'nurburgring': 'nurburgring',
-      'albert_park': 'albert_park',
-      'bahrain': 'bahrain',
-      'shanghai': 'shanghai',
-      'catalunya': 'catalunya',
-      'hungaroring': 'hungaroring',
-      'valencia': 'valencia',
-      'hockenheim': 'hockenheim',
-      'magny_cours': 'magny_cours'
+      silverstone: 'silverstone',
+      monaco: 'monaco',
+      spa: 'spa',
+      monza: 'monza',
+      interlagos: 'interlagos',
+      suzuka: 'suzuka',
+      nurburgring: 'nurburgring',
+      albert_park: 'albert_park',
+      bahrain: 'bahrain',
+      shanghai: 'shanghai',
+      catalunya: 'catalunya',
+      hungaroring: 'hungaroring',
+      valencia: 'valencia',
+      hockenheim: 'hockenheim',
+      magny_cours: 'magny_cours',
     };
 
     const queryLower = query.toLowerCase();
@@ -157,11 +196,11 @@ Always reference specific data points, years, and provide comparative analysis w
         name: circuit.circuitName,
         location: `${circuit.Location?.locality}, ${circuit.Location?.country}`,
         length: circuit.length || 'Not specified',
-        url: circuit.url
+        url: circuit.url,
       },
       characteristics: this.analyzeCircuitCharacteristics(circuit),
       performance: this.analyzePerformanceData(results, lapRecords),
-      historicalContext: this.generateHistoricalContext(results)
+      historicalContext: this.generateHistoricalContext(results),
     };
 
     return analysis;
@@ -172,61 +211,65 @@ Always reference specific data points, years, and provide comparative analysis w
     return {
       type: this.categorizeCircuit(circuit),
       difficulty: this.assessDifficulty(circuit),
-      overtakingOpportunities: this.assessOvertaking(circuit)
+      overtakingOpportunities: this.assessOvertaking(circuit),
     };
   }
 
   categorizeCircuit(circuit) {
     const name = circuit.circuitName?.toLowerCase() || '';
-    
+
     if (name.includes('monaco')) return 'Street Circuit - High Precision';
     if (name.includes('monza')) return 'High Speed - Low Downforce';
     if (name.includes('hungary')) return 'Technical - High Downforce';
     if (name.includes('spa')) return 'High Speed - Mixed Conditions';
-    
+
     return 'Mixed Characteristics';
   }
 
   assessDifficulty(circuit) {
     // Simple assessment - would be enhanced with real data
     const name = circuit.circuitName?.toLowerCase() || '';
-    
-    if (name.includes('monaco') || name.includes('singapore')) return 'Very High';
+
+    if (name.includes('monaco') || name.includes('singapore'))
+      return 'Very High';
     if (name.includes('spa') || name.includes('suzuka')) return 'High';
-    
+
     return 'Medium';
   }
 
   assessOvertaking(circuit) {
     const name = circuit.circuitName?.toLowerCase() || '';
-    
+
     if (name.includes('monaco')) return 'Very Limited';
     if (name.includes('monza') || name.includes('bahrain')) return 'Good';
-    
+
     return 'Moderate';
   }
 
   analyzePerformanceData(results, lapRecords) {
-    if (!results || results.length === 0) return 'No performance data available';
+    if (!results || results.length === 0)
+      return 'No performance data available';
 
     return {
-      recentWinners: results.slice(0, 5).map(race => ({
+      recentWinners: results.slice(0, 5).map((race) => ({
         year: race.season,
         winner: race.Results?.[0]?.Driver?.familyName || 'Unknown',
-        constructor: race.Results?.[0]?.Constructor?.name || 'Unknown'
+        constructor: race.Results?.[0]?.Constructor?.name || 'Unknown',
       })),
-      recordHolders: lapRecords.slice(0, 3).map(record => ({
+      recordHolders: lapRecords.slice(0, 3).map((record) => ({
         year: record.season,
         driver: record.Results?.[0]?.Driver?.familyName || 'Unknown',
-        time: record.Results?.[0]?.FastestLap?.Time?.time || 'Unknown'
-      }))
+        time: record.Results?.[0]?.FastestLap?.Time?.time || 'Unknown',
+      })),
     };
   }
 
   generateHistoricalContext(results) {
     if (!results || results.length === 0) return 'No historical data available';
 
-    const years = results.map(race => parseInt(race.season)).sort((a, b) => b - a);
+    const years = results
+      .map((race) => parseInt(race.season))
+      .sort((a, b) => b - a);
     const firstRace = Math.min(...years);
     const lastRace = Math.max(...years);
 
@@ -234,7 +277,7 @@ Always reference specific data points, years, and provide comparative analysis w
       firstF1Race: firstRace,
       lastF1Race: lastRace,
       totalRaces: results.length,
-      era: this.categorizeEra(firstRace, lastRace)
+      era: this.categorizeEra(firstRace, lastRace),
     };
   }
 
@@ -249,16 +292,18 @@ Always reference specific data points, years, and provide comparative analysis w
   generateCircuitComparison(circuitData) {
     return {
       totalCircuits: circuitData.length,
-      comparison: 'Detailed circuit comparison analysis would be generated here',
-      summary: `Comparing ${circuitData.length} circuits with their unique characteristics and performance data`
+      comparison:
+        'Detailed circuit comparison analysis would be generated here',
+      summary: `Comparing ${circuitData.length} circuits with their unique characteristics and performance data`,
     };
   }
 
   generatePerformanceAnalysis(results, winners) {
     return {
-      summary: 'Circuit performance analysis based on historical results and winner data',
+      summary:
+        'Circuit performance analysis based on historical results and winner data',
       trends: 'Performance trends would be analyzed here',
-      insights: 'Key insights about circuit-specific performance patterns'
+      insights: 'Key insights about circuit-specific performance patterns',
     };
   }
 }

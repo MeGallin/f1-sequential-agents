@@ -11,7 +11,7 @@ class F1Workflow {
     this.memory = memory;
     this.sharedLLM = sharedLLM;
     this.router = new F1RouterAgent();
-    
+
     // Create the workflow
     this.workflow = this.createWorkflow();
   }
@@ -32,8 +32,8 @@ class F1Workflow {
         requiresConfirmation: null,
         userConfirmation: null,
         fallbackRequired: null,
-        streamingEnabled: null
-      }
+        streamingEnabled: null,
+      },
     });
 
     // Add nodes - clean linear flow like TFL
@@ -46,15 +46,15 @@ class F1Workflow {
 
     // Add edges - simplified flow
     workflow.addEdge(START, 'input_validation');
-    
+
     // Conditional routing based on validation
     workflow.addConditionalEdges(
       'input_validation',
       this.shouldRoute.bind(this),
       {
-        'route': 'route_query',
-        'error': 'fallback_handler'
-      }
+        route: 'route_query',
+        error: 'fallback_handler',
+      },
     );
 
     // Route to appropriate agent
@@ -65,9 +65,9 @@ class F1Workflow {
       'process_agent',
       this.shouldProceed.bind(this),
       {
-        'proceed': 'save_memory',
-        'fallback': 'fallback_handler'
-      }
+        proceed: 'save_memory',
+        fallback: 'fallback_handler',
+      },
     );
 
     // Save and finalize
@@ -81,14 +81,14 @@ class F1Workflow {
   // Node implementations
   async validateInput(state) {
     console.log('[F1Workflow] Validating input...');
-    
+
     if (!state.query || state.query.trim().length === 0) {
       return {
         ...state,
         error: {
           message: 'Please provide a valid F1 query',
-          type: 'validation_error'
-        }
+          type: 'validation_error',
+        },
       };
     }
 
@@ -97,32 +97,40 @@ class F1Workflow {
       timestamp: new Date().toISOString(),
       processingTime: 0,
       apiCalls: 0,
-      workflowPath: ['input_validation']
+      workflowPath: ['input_validation'],
     };
 
     return {
       ...state,
       query: state.query.trim(),
-      threadId: state.threadId || `f1_thread_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      metadata
+      threadId:
+        state.threadId ||
+        `f1_thread_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      metadata,
     };
   }
 
   async routeQuery(state) {
     console.log('[F1Workflow] Routing query...');
-    
+
     try {
       // Get conversation context from memory
-      const conversationContext = this.memory.getRelevantContext(state.threadId, state.query);
-      
+      const conversationContext = this.memory.getRelevantContext(
+        state.threadId,
+        state.query,
+      );
+
       const routerResult = await this.router.processQuery(
         state.query,
         this.sharedLLM,
-        { ...state.userContext, conversationContext }
+        { ...state.userContext, conversationContext },
       );
 
       // Handle off-topic or inappropriate queries
-      if (routerResult.selectedAgent === 'off_topic' || routerResult.selectedAgent === 'inappropriate') {
+      if (
+        routerResult.selectedAgent === 'off_topic' ||
+        routerResult.selectedAgent === 'inappropriate'
+      ) {
         return {
           ...state,
           agentResponse: routerResult.message,
@@ -130,8 +138,11 @@ class F1Workflow {
           confidence: 1.0,
           metadata: {
             ...state.metadata,
-            workflowPath: [...state.metadata.workflowPath, 'route_query_filtered']
-          }
+            workflowPath: [
+              ...state.metadata.workflowPath,
+              'route_query_filtered',
+            ],
+          },
         };
       }
 
@@ -143,8 +154,8 @@ class F1Workflow {
         metadata: {
           ...state.metadata,
           workflowPath: [...state.metadata.workflowPath, 'route_query'],
-          routerConfidence: routerResult.confidence
-        }
+          routerConfidence: routerResult.confidence,
+        },
       };
     } catch (error) {
       console.error('[F1Workflow] Routing error:', error);
@@ -152,29 +163,29 @@ class F1Workflow {
         ...state,
         error: {
           message: error.message,
-          type: 'routing_error'
+          type: 'routing_error',
         },
-        fallbackRequired: true
+        fallbackRequired: true,
       };
     }
   }
 
   async processAgent(state) {
     console.log(`[F1Workflow] Processing with ${state.selectedAgent} agent...`);
-    
+
     try {
       // Map agent names to actual agents
       const agentMapping = {
-        'race_results': 'raceResults',
-        'circuit': 'circuit', 
-        'driver': 'driver',
-        'constructor': 'constructor',
-        'championship': 'championship',
-        'historical': 'historical'
+        race_results: 'raceResults',
+        circuit: 'circuit',
+        driver: 'driver',
+        constructor: 'constructor',
+        championship: 'championship',
+        historical: 'historical',
       };
 
       const actualAgentId = agentMapping[state.selectedAgent] || 'raceResults';
-      
+
       if (!this.agents[actualAgentId]) {
         throw new Error(`Agent "${actualAgentId}" not found`);
       }
@@ -185,29 +196,48 @@ class F1Workflow {
         routerConfidence: state.confidence,
         conversationHistory: state.conversationHistory?.recentMessages || [],
         conversationContext: state.conversationHistory,
-        f1Data: state.f1Data
+        f1Data: state.f1Data,
       };
 
       // Handle year clarification context
       if (state.conversationHistory?.needsYearClarification) {
-        context.needsYearClarification = state.conversationHistory.needsYearClarification;
+        context.needsYearClarification =
+          state.conversationHistory.needsYearClarification;
       }
 
       const agentResponse = await this.agents[actualAgentId].processQuery(
         state.query,
-        context
+        context,
       );
+
+      console.log(`[F1Workflow] Agent response structure:`, {
+        response: agentResponse.response ? 'present' : 'missing',
+        analysis: agentResponse.analysis ? 'present' : 'missing',
+        success: agentResponse.success,
+        error: agentResponse.error,
+        keys: Object.keys(agentResponse),
+        agentResponseLength: agentResponse.response
+          ? agentResponse.response.length
+          : 0,
+        fullResponse:
+          agentResponse.success === false ? agentResponse : 'truncated',
+      });
+
+      const finalResponse =
+        agentResponse.response ||
+        agentResponse.analysis ||
+        'No response available';
 
       return {
         ...state,
-        agentResponse: agentResponse.response || agentResponse.analysis,
+        agentResponse: finalResponse,
         f1Data: agentResponse.f1Data || state.f1Data,
         metadata: {
           ...state.metadata,
           workflowPath: [...state.metadata.workflowPath, 'process_agent'],
           agentUsed: actualAgentId,
-          agentConfidence: agentResponse.confidence
-        }
+          agentConfidence: agentResponse.confidence,
+        },
       };
     } catch (error) {
       console.error('[F1Workflow] Agent processing error:', error);
@@ -215,19 +245,19 @@ class F1Workflow {
         ...state,
         error: {
           message: error.message,
-          type: 'agent_error'
+          type: 'agent_error',
         },
-        fallbackRequired: true
+        fallbackRequired: true,
       };
     }
   }
 
   async handleFallback(state) {
     console.log('[F1Workflow] Handling fallback...');
-    
-    const fallbackMessage = state.error ? 
-      `I apologize, but I encountered an issue: ${state.error.message}. Please try rephrasing your F1 question or ask me something else about Formula 1.` :
-      "I'm having trouble processing your F1 request at the moment. Please try again or ask me something else about Formula 1 races, drivers, or championships.";
+
+    const fallbackMessage = state.error
+      ? `I apologize, but I encountered an issue: ${state.error.message}. Please try rephrasing your F1 question or ask me something else about Formula 1.`
+      : "I'm having trouble processing your F1 request at the moment. Please try again or ask me something else about Formula 1 races, drivers, or championships.";
 
     return {
       ...state,
@@ -237,30 +267,36 @@ class F1Workflow {
       metadata: {
         ...state.metadata,
         workflowPath: [...state.metadata.workflowPath, 'fallback_handler'],
-        fallbackReason: state.error?.type || 'unknown'
-      }
+        fallbackReason: state.error?.type || 'unknown',
+      },
     };
   }
 
   async saveMemory(state) {
     console.log('[F1Workflow] Saving to memory...');
-    
+
     try {
       if (state.threadId && this.memory) {
         // Save user message
         await this.memory.saveMessage(state.threadId, 'user', state.query, {
           userContext: state.userContext,
-          timestamp: state.metadata.timestamp
+          timestamp: state.metadata.timestamp,
         });
 
         // Save assistant response
-        await this.memory.saveMessage(state.threadId, 'assistant', state.agentResponse, {
-          agent: state.selectedAgent,
-          confidence: state.confidence,
-          f1Data: state.f1Data,
-          workflowPath: state.metadata.workflowPath,
-          processingTime: Date.now() - new Date(state.metadata.timestamp).getTime()
-        });
+        await this.memory.saveMessage(
+          state.threadId,
+          'assistant',
+          state.agentResponse,
+          {
+            agent: state.selectedAgent,
+            confidence: state.confidence,
+            f1Data: state.f1Data,
+            workflowPath: state.metadata.workflowPath,
+            processingTime:
+              Date.now() - new Date(state.metadata.timestamp).getTime(),
+          },
+        );
       }
 
       return {
@@ -268,8 +304,8 @@ class F1Workflow {
         metadata: {
           ...state.metadata,
           workflowPath: [...state.metadata.workflowPath, 'save_memory'],
-          memorySaved: true
-        }
+          memorySaved: true,
+        },
       };
     } catch (error) {
       console.error('[F1Workflow] Memory save error:', error);
@@ -279,25 +315,26 @@ class F1Workflow {
         metadata: {
           ...state.metadata,
           workflowPath: [...state.metadata.workflowPath, 'save_memory_failed'],
-          memoryError: error.message
-        }
+          memoryError: error.message,
+        },
       };
     }
   }
 
   async finalizeResponse(state) {
     console.log('[F1Workflow] Finalizing response...');
-    
-    const processingTime = Date.now() - new Date(state.metadata.timestamp).getTime();
-    
+
+    const processingTime =
+      Date.now() - new Date(state.metadata.timestamp).getTime();
+
     return {
       ...state,
       metadata: {
         ...state.metadata,
         workflowPath: [...state.metadata.workflowPath, 'finalize_response'],
         processingTime,
-        completed: true
-      }
+        completed: true,
+      },
     };
   }
 
@@ -316,7 +353,7 @@ class F1Workflow {
   // Main execution method
   async execute(initialState) {
     console.log('[F1Workflow] Starting workflow execution...');
-    
+
     try {
       const result = await this.workflow.invoke(initialState);
       console.log('[F1Workflow] Workflow completed successfully');
@@ -330,14 +367,14 @@ class F1Workflow {
   // Stream execution for real-time updates
   async *stream(initialState) {
     console.log('[F1Workflow] Starting streaming workflow execution...');
-    
+
     try {
       // For now, fall back to regular execution since StateGraph.stream() is not available
       const result = await this.workflow.invoke(initialState);
-      
+
       // Simulate streaming by yielding the final result
       yield {
-        finalize_response: result
+        finalize_response: result,
       };
     } catch (error) {
       console.error('[F1Workflow] Streaming workflow error:', error);
@@ -349,11 +386,15 @@ class F1Workflow {
   getWorkflowVisualization() {
     return {
       nodes: [
-        'input_validation', 'route_query', 'process_agent',
-        'save_memory', 'finalize_response', 'fallback_handler'
+        'input_validation',
+        'route_query',
+        'process_agent',
+        'save_memory',
+        'finalize_response',
+        'fallback_handler',
       ],
       flow: 'input_validation → route_query → process_agent → save_memory → finalize_response',
-      description: 'Simplified linear workflow following TFL pattern'
+      description: 'Simplified linear workflow following TFL pattern',
     };
   }
 }

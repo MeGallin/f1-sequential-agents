@@ -21,17 +21,49 @@ export class ChampionshipAgent extends BaseF1Agent {
     }
 
     // Fallback prompt
-    return `You are the F1 Championship Predictor Agent. 
-    
-You have access to F1 API tools that can fetch:
-- Current driver and constructor championship standings
-- Historical championship data and analysis
-- Points systems and mathematical scenarios
-- Season progression and prediction modeling
+    return `You are the F1 Championship Predictor Agent with access to real F1 standings data tools.
 
-When users ask about championships without specifying context, use conversation history to understand their intent.
+TOOLS AVAILABLE:
+- get_driver_standings: Get driver championship standings for a season
+- get_constructor_standings: Get constructor championship standings for a season
+- get_season_summary: Get complete season summary including standings and races
+- compare_seasons: Compare multiple F1 seasons with standings and race data
 
-Provide analytical, mathematically-backed predictions based only on the API responses you receive.`;
+INSTRUCTIONS:
+1. ALWAYS use the available tools to fetch real F1 championship data
+2. For current year queries ("this year", "2025"), use season="2025"
+3. For current standings, use get_driver_standings or get_constructor_standings with season="2025"
+4. For season summaries, use get_season_summary with the specific year
+5. For historical comparisons, use compare_seasons with array of years
+6. For specific season standings, use get_driver_standings or get_constructor_standings with the year
+7. NEVER give generic responses - always call tools first
+
+YEAR INTERPRETATION:
+- "this year" = 2025 (current year)
+- "current season" = 2025
+- "last year" = 2024
+- Specific years like "2023" = use that exact year
+
+CHAMPIONSHIP ANALYSIS EXPERTISE:
+• Current driver and constructor championship standings
+• Historical championship data and analysis
+• Points systems and mathematical scenarios
+• Season progression and prediction modeling
+• Championship battle analysis and projections
+• Statistical trends and patterns
+
+FORMATTING GUIDELINES:
+- Use clean, structured responses with NO markdown formatting
+- NEVER use asterisks (**) for bold text or emphasis
+- NEVER use hashtags (###) for headers
+- NEVER use hyphens (-) for bullet points
+- Use plain text with simple colons (:) for labels
+- Use simple headings like "Driver Standings:" or "Constructor Standings:"
+- Present standings in simple lines without special characters
+- Use proper spacing and line breaks for readability
+- Format should be UI-friendly and clean for display
+
+When users ask about championships, use the appropriate tools to fetch current data and provide analytical, mathematically-backed predictions with clean formatting.`;
   }
 
   // Championship-specific analysis methods
@@ -39,13 +71,16 @@ Provide analytical, mathematically-backed predictions based only on the API resp
     try {
       const [driverStandings, constructorStandings] = await Promise.all([
         this.standingsTools.getCurrentDriverStandings(),
-        this.standingsTools.getCurrentConstructorStandings()
+        this.standingsTools.getCurrentConstructorStandings(),
       ]);
 
       return {
         drivers: driverStandings,
         constructors: constructorStandings,
-        analysis: this.generateChampionshipAnalysis(driverStandings, constructorStandings)
+        analysis: this.generateChampionshipAnalysis(
+          driverStandings,
+          constructorStandings,
+        ),
       };
     } catch (error) {
       console.error('Error analyzing current championship:', error);
@@ -55,18 +90,23 @@ Provide analytical, mathematically-backed predictions based only on the API resp
 
   async analyzeSeasonChampionship(season) {
     try {
-      const [driverStandings, constructorStandings, seasonSummary] = await Promise.all([
-        this.standingsTools.getDriverStandings(season),
-        this.standingsTools.getConstructorStandings(season),
-        this.standingsTools.getSeasonSummary(season)
-      ]);
+      const [driverStandings, constructorStandings, seasonSummary] =
+        await Promise.all([
+          this.standingsTools.getDriverStandings(season),
+          this.standingsTools.getConstructorStandings(season),
+          this.standingsTools.getSeasonSummary(season),
+        ]);
 
       return {
         season,
         drivers: driverStandings,
         constructors: constructorStandings,
         summary: seasonSummary,
-        analysis: this.generateSeasonChampionshipAnalysis(driverStandings, constructorStandings, seasonSummary)
+        analysis: this.generateSeasonChampionshipAnalysis(
+          driverStandings,
+          constructorStandings,
+          seasonSummary,
+        ),
       };
     } catch (error) {
       console.error(`Error analyzing ${season} championship:`, error);
@@ -77,19 +117,28 @@ Provide analytical, mathematically-backed predictions based only on the API resp
   async predictChampionship(season = 'current') {
     try {
       const [driverStandings, constructorStandings] = await Promise.all([
-        season === 'current' 
+        season === 'current'
           ? this.standingsTools.getCurrentDriverStandings()
           : this.standingsTools.getDriverStandings(season),
-        season === 'current' 
+        season === 'current'
           ? this.standingsTools.getCurrentConstructorStandings()
-          : this.standingsTools.getConstructorStandings(season)
+          : this.standingsTools.getConstructorStandings(season),
       ]);
 
       return {
         season,
-        predictions: this.generateChampionshipPredictions(driverStandings, constructorStandings),
-        scenarios: this.generateChampionshipScenarios(driverStandings, constructorStandings),
-        analysis: this.generatePredictionAnalysis(driverStandings, constructorStandings)
+        predictions: this.generateChampionshipPredictions(
+          driverStandings,
+          constructorStandings,
+        ),
+        scenarios: this.generateChampionshipScenarios(
+          driverStandings,
+          constructorStandings,
+        ),
+        analysis: this.generatePredictionAnalysis(
+          driverStandings,
+          constructorStandings,
+        ),
       };
     } catch (error) {
       console.error(`Error predicting ${season} championship:`, error);
@@ -100,13 +149,13 @@ Provide analytical, mathematically-backed predictions based only on the API resp
   async compareChampionships(seasons) {
     try {
       const championshipData = await Promise.all(
-        seasons.map(season => this.analyzeSeasonChampionship(season))
+        seasons.map((season) => this.analyzeSeasonChampionship(season)),
       );
 
       return {
         seasons,
         championships: championshipData,
-        comparison: this.generateChampionshipComparison(championshipData)
+        comparison: this.generateChampionshipComparison(championshipData),
       };
     } catch (error) {
       console.error('Error comparing championships:', error);
@@ -116,15 +165,20 @@ Provide analytical, mathematically-backed predictions based only on the API resp
 
   async analyzeChampionshipProgression(season) {
     try {
-      const progression = await this.standingsTools.getStandingsProgression(season);
+      const progression = await this.standingsTools.getStandingsProgression(
+        season,
+      );
 
       return {
         season,
         progression,
-        analysis: this.generateProgressionAnalysis(progression)
+        analysis: this.generateProgressionAnalysis(progression),
       };
     } catch (error) {
-      console.error(`Error analyzing championship progression for ${season}:`, error);
+      console.error(
+        `Error analyzing championship progression for ${season}:`,
+        error,
+      );
       throw error;
     }
   }
@@ -134,10 +188,12 @@ Provide analytical, mathematically-backed predictions based only on the API resp
     try {
       // Extract championship information from query
       const championshipInfo = this.extractChampionshipFromQuery(query);
-      
+
       if (championshipInfo.season) {
         // Fetch specific season championship data
-        const championshipData = await this.analyzeSeasonChampionship(championshipInfo.season);
+        const championshipData = await this.analyzeSeasonChampionship(
+          championshipInfo.season,
+        );
         context.f1Data = { ...context.f1Data, ...championshipData };
       } else if (championshipInfo.isCurrent) {
         // Fetch current championship data
@@ -156,32 +212,45 @@ Provide analytical, mathematically-backed predictions based only on the API resp
   // Helper methods
   extractChampionshipFromQuery(query) {
     const queryLower = query.toLowerCase();
-    
+
     // Extract season
     const seasonMatch = queryLower.match(/\b(19|20)\d{2}\b/);
     const season = seasonMatch ? seasonMatch[0] : null;
-    
+
     // Check for current championship keywords
-    const isCurrent = queryLower.includes('current') || queryLower.includes('this season') || queryLower.includes('now');
-    
+    const isCurrent =
+      queryLower.includes('current') ||
+      queryLower.includes('this season') ||
+      queryLower.includes('now');
+
     // Check for prediction keywords
-    const isPrediction = queryLower.includes('predict') || queryLower.includes('forecast') || queryLower.includes('who will win');
-    
+    const isPrediction =
+      queryLower.includes('predict') ||
+      queryLower.includes('forecast') ||
+      queryLower.includes('who will win');
+
     return {
       season,
       isCurrent,
-      isPrediction
+      isPrediction,
     };
   }
 
   generateChampionshipAnalysis(driverStandings, constructorStandings) {
-    if (!driverStandings || !constructorStandings) return 'Championship data not available';
+    if (!driverStandings || !constructorStandings)
+      return 'Championship data not available';
 
     return {
       driverTitle: this.analyzeDriverTitle(driverStandings),
       constructorTitle: this.analyzeConstructorTitle(constructorStandings),
-      battleIntensity: this.assessBattleIntensity(driverStandings, constructorStandings),
-      keyFactors: this.identifyKeyFactors(driverStandings, constructorStandings)
+      battleIntensity: this.assessBattleIntensity(
+        driverStandings,
+        constructorStandings,
+      ),
+      keyFactors: this.identifyKeyFactors(
+        driverStandings,
+        constructorStandings,
+      ),
     };
   }
 
@@ -192,56 +261,73 @@ Provide analytical, mathematically-backed predictions based only on the API resp
 
     const leader = standings.DriverStandings[0];
     const secondPlace = standings.DriverStandings[1];
-    
+
     const leaderInfo = {
       driver: `${leader.Driver?.givenName} ${leader.Driver?.familyName}`,
       constructor: leader.Constructors?.[0]?.name,
       points: parseInt(leader.points),
       wins: parseInt(leader.wins),
-      position: parseInt(leader.position)
+      position: parseInt(leader.position),
     };
 
-    const gap = secondPlace ? parseInt(leader.points) - parseInt(secondPlace.points) : 0;
-    
+    const gap = secondPlace
+      ? parseInt(leader.points) - parseInt(secondPlace.points)
+      : 0;
+
     return {
       leader: leaderInfo,
       gap: gap,
-      challenger: secondPlace ? {
-        driver: `${secondPlace.Driver?.givenName} ${secondPlace.Driver?.familyName}`,
-        constructor: secondPlace.Constructors?.[0]?.name,
-        points: parseInt(secondPlace.points),
-        wins: parseInt(secondPlace.wins)
-      } : null,
-      status: this.assessChampionshipStatus(gap, standings.DriverStandings.length)
+      challenger: secondPlace
+        ? {
+            driver: `${secondPlace.Driver?.givenName} ${secondPlace.Driver?.familyName}`,
+            constructor: secondPlace.Constructors?.[0]?.name,
+            points: parseInt(secondPlace.points),
+            wins: parseInt(secondPlace.wins),
+          }
+        : null,
+      status: this.assessChampionshipStatus(
+        gap,
+        standings.DriverStandings.length,
+      ),
     };
   }
 
   analyzeConstructorTitle(standings) {
-    if (!standings.ConstructorStandings || standings.ConstructorStandings.length === 0) {
+    if (
+      !standings.ConstructorStandings ||
+      standings.ConstructorStandings.length === 0
+    ) {
       return 'Constructor standings not available';
     }
 
     const leader = standings.ConstructorStandings[0];
     const secondPlace = standings.ConstructorStandings[1];
-    
+
     const leaderInfo = {
       constructor: leader.Constructor?.name,
       points: parseInt(leader.points),
       wins: parseInt(leader.wins),
-      position: parseInt(leader.position)
+      position: parseInt(leader.position),
     };
 
-    const gap = secondPlace ? parseInt(leader.points) - parseInt(secondPlace.points) : 0;
-    
+    const gap = secondPlace
+      ? parseInt(leader.points) - parseInt(secondPlace.points)
+      : 0;
+
     return {
       leader: leaderInfo,
       gap: gap,
-      challenger: secondPlace ? {
-        constructor: secondPlace.Constructor?.name,
-        points: parseInt(secondPlace.points),
-        wins: parseInt(secondPlace.wins)
-      } : null,
-      status: this.assessChampionshipStatus(gap, standings.ConstructorStandings.length)
+      challenger: secondPlace
+        ? {
+            constructor: secondPlace.Constructor?.name,
+            points: parseInt(secondPlace.points),
+            wins: parseInt(secondPlace.wins),
+          }
+        : null,
+      status: this.assessChampionshipStatus(
+        gap,
+        standings.ConstructorStandings.length,
+      ),
     };
   }
 
@@ -256,10 +342,12 @@ Provide analytical, mathematically-backed predictions based only on the API resp
 
   assessBattleIntensity(driverStandings, constructorStandings) {
     const driverGap = this.getTopGap(driverStandings.DriverStandings);
-    const constructorGap = this.getTopGap(constructorStandings.ConstructorStandings);
-    
+    const constructorGap = this.getTopGap(
+      constructorStandings.ConstructorStandings,
+    );
+
     const avgGap = (driverGap + constructorGap) / 2;
-    
+
     if (avgGap <= 10) return 'Extremely intense';
     if (avgGap <= 25) return 'Very competitive';
     if (avgGap <= 50) return 'Competitive';
@@ -277,51 +365,65 @@ Provide analytical, mathematically-backed predictions based only on the API resp
       'Circuit-specific performance',
       'Strategic execution',
       'Weather conditions impact',
-      'Development race progression'
+      'Development race progression',
     ];
   }
 
   generateChampionshipPredictions(driverStandings, constructorStandings) {
-    if (!driverStandings || !constructorStandings) return 'Insufficient data for predictions';
+    if (!driverStandings || !constructorStandings)
+      return 'Insufficient data for predictions';
 
     return {
       driverFavorite: this.predictDriverChampion(driverStandings),
-      constructorFavorite: this.predictConstructorChampion(constructorStandings),
-      confidence: this.calculatePredictionConfidence(driverStandings, constructorStandings),
-      keyAssumptions: this.getKeyAssumptions()
+      constructorFavorite:
+        this.predictConstructorChampion(constructorStandings),
+      confidence: this.calculatePredictionConfidence(
+        driverStandings,
+        constructorStandings,
+      ),
+      keyAssumptions: this.getKeyAssumptions(),
     };
   }
 
   predictDriverChampion(standings) {
-    if (!standings.DriverStandings || standings.DriverStandings.length === 0) return null;
+    if (!standings.DriverStandings || standings.DriverStandings.length === 0)
+      return null;
 
     const leader = standings.DriverStandings[0];
     const secondPlace = standings.DriverStandings[1];
-    
-    const gap = secondPlace ? parseInt(leader.points) - parseInt(secondPlace.points) : 0;
+
+    const gap = secondPlace
+      ? parseInt(leader.points) - parseInt(secondPlace.points)
+      : 0;
     const probability = this.calculateWinProbability(gap, 'driver');
 
     return {
       driver: `${leader.Driver?.givenName} ${leader.Driver?.familyName}`,
       constructor: leader.Constructors?.[0]?.name,
       probability: probability,
-      reasoning: this.generatePredictionReasoning(gap, probability)
+      reasoning: this.generatePredictionReasoning(gap, probability),
     };
   }
 
   predictConstructorChampion(standings) {
-    if (!standings.ConstructorStandings || standings.ConstructorStandings.length === 0) return null;
+    if (
+      !standings.ConstructorStandings ||
+      standings.ConstructorStandings.length === 0
+    )
+      return null;
 
     const leader = standings.ConstructorStandings[0];
     const secondPlace = standings.ConstructorStandings[1];
-    
-    const gap = secondPlace ? parseInt(leader.points) - parseInt(secondPlace.points) : 0;
+
+    const gap = secondPlace
+      ? parseInt(leader.points) - parseInt(secondPlace.points)
+      : 0;
     const probability = this.calculateWinProbability(gap, 'constructor');
 
     return {
       constructor: leader.Constructor?.name,
       probability: probability,
-      reasoning: this.generatePredictionReasoning(gap, probability)
+      reasoning: this.generatePredictionReasoning(gap, probability),
     };
   }
 
@@ -336,18 +438,23 @@ Provide analytical, mathematically-backed predictions based only on the API resp
   }
 
   generatePredictionReasoning(gap, probability) {
-    if (probability >= 90) return 'Mathematically very likely based on current points advantage';
-    if (probability >= 75) return 'Strong position but championship not yet secure';
-    if (probability >= 60) return 'Favorable position but significant challenges remain';
+    if (probability >= 90)
+      return 'Mathematically very likely based on current points advantage';
+    if (probability >= 75)
+      return 'Strong position but championship not yet secure';
+    if (probability >= 60)
+      return 'Favorable position but significant challenges remain';
     return 'Championship battle remains wide open';
   }
 
   calculatePredictionConfidence(driverStandings, constructorStandings) {
     const driverGap = this.getTopGap(driverStandings.DriverStandings);
-    const constructorGap = this.getTopGap(constructorStandings.ConstructorStandings);
-    
+    const constructorGap = this.getTopGap(
+      constructorStandings.ConstructorStandings,
+    );
+
     const avgGap = (driverGap + constructorGap) / 2;
-    
+
     if (avgGap >= 75) return 'High confidence';
     if (avgGap >= 40) return 'Medium confidence';
     return 'Low confidence - many variables';
@@ -359,7 +466,7 @@ Provide analytical, mathematically-backed predictions based only on the API resp
       'No major technical failures or accidents',
       'Consistent competitive balance',
       'Normal weather conditions',
-      'No significant regulation changes'
+      'No significant regulation changes',
     ];
   }
 
@@ -368,15 +475,19 @@ Provide analytical, mathematically-backed predictions based only on the API resp
       bestCase: 'Best case scenario for championship leader',
       worstCase: 'Worst case scenario that could change championship',
       realistic: 'Most realistic championship outcome',
-      wildcard: 'Unexpected scenarios that could impact the title'
+      wildcard: 'Unexpected scenarios that could impact the title',
     };
   }
 
-  generateSeasonChampionshipAnalysis(driverStandings, constructorStandings, seasonSummary) {
+  generateSeasonChampionshipAnalysis(
+    driverStandings,
+    constructorStandings,
+    seasonSummary,
+  ) {
     return {
       summary: 'Comprehensive season championship analysis',
       highlights: 'Key championship moments and turning points',
-      statistics: 'Championship statistics and records from the season'
+      statistics: 'Championship statistics and records from the season',
     };
   }
 
@@ -384,7 +495,8 @@ Provide analytical, mathematically-backed predictions based only on the API resp
     return {
       totalSeasons: championshipData.length,
       comparison: 'Detailed comparison of championship battles across seasons',
-      patterns: 'Patterns and trends identified across different championship years'
+      patterns:
+        'Patterns and trends identified across different championship years',
     };
   }
 
@@ -392,7 +504,7 @@ Provide analytical, mathematically-backed predictions based only on the API resp
     return {
       trends: 'Championship progression trends throughout the season',
       turningPoints: 'Key moments that changed championship momentum',
-      consistency: 'Analysis of championship contender consistency'
+      consistency: 'Analysis of championship contender consistency',
     };
   }
 
@@ -400,7 +512,7 @@ Provide analytical, mathematically-backed predictions based only on the API resp
     return {
       methodology: 'Prediction methodology and key factors considered',
       uncertainty: 'Sources of uncertainty in championship predictions',
-      scenarios: 'Multiple scenarios and their probability assessments'
+      scenarios: 'Multiple scenarios and their probability assessments',
     };
   }
 }
