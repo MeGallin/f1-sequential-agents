@@ -4,6 +4,7 @@ import { modelConfig } from './config/modelConfig.js';
 import { F1Workflow } from './workflows/f1Workflow.js';
 import { F1ChatMemory } from './memory/f1ChatMemory.js';
 import { agentFactory } from './agents/agentFactory.js';
+import { MonitoringMiddleware } from './middleware/monitoring.js';
 
 /**
  * F1 Sequential Agents App - Following TFL Pattern
@@ -17,6 +18,7 @@ class F1App {
     this.agents = {};
     this.workflow = null;
     this.sharedLLM = null;
+    this.monitoring = new MonitoringMiddleware();
     this.isInitialized = false;
   }
 
@@ -89,23 +91,16 @@ class F1App {
     // JSON parsing
     this.app.use(express.json({ limit: '10mb' }));
 
-    // Request logging
-    this.app.use((req, res, next) => {
-      console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
-      next();
-    });
+    // Monitoring middleware
+    this.app.use(this.monitoring.requestMonitoring());
   }
 
   setupRoutes() {
-    // Health check
-    this.app.get('/health', (req, res) => {
-      res.json({
-        status: 'healthy',
-        timestamp: new Date().toISOString(),
-        memory: this.memory.getStats(),
-        agents: Object.keys(this.agents)
-      });
-    });
+    // Health check with monitoring
+    this.app.get('/health', this.monitoring.healthCheck());
+
+    // Metrics endpoint
+    this.app.get('/metrics', this.monitoring.metricsEndpoint());
 
     // Main query processing endpoint
     this.app.post('/query', async (req, res) => {
@@ -365,6 +360,9 @@ class F1App {
         message: 'The requested endpoint does not exist'
       });
     });
+
+    // Error handling middleware
+    this.app.use(this.monitoring.errorTracking());
   }
 
   async start() {

@@ -6,13 +6,18 @@
   "type": "module",
   "scripts": {
     "start": "node src/server.js",
+    "start:prod": "NODE_ENV=production node src/server.js",
     "dev": "nodemon src/server.js",
     "dev:watch": "node --watch src/server.js",
     "dev:watch-experimental": "node --watch --experimental-loader ./loader.mjs src/server.js",
-    "validate": "node validate-imports.js",
+    "validate": "node tests/validate-imports.js",
     "test": "jest",
+    "test:ci": "jest --ci --coverage --watchAll=false",
     "lint": "eslint src/**/*.js",
-    "build": "echo 'No build step required'"
+    "lint:fix": "eslint src/**/*.js --fix",
+    "build": "echo 'No build step required'",
+    "health-check": "curl -f http://localhost:$PORT/health || exit 1",
+    "prestart": "npm run validate"
   },
   "keywords": [
     "F1",

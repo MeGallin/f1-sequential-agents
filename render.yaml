@@ -1,0 +1,35 @@
+services:
+  - type: web
+    name: f1-sequential-agents
+    env: node
+    plan: starter
+    buildCommand: npm ci
+    startCommand: npm run start:prod
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 8000
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: F1_API_BASE_URL
+        value: http://api.jolpi.ca/ergast/f1
+      - key: CORS_ORIGIN
+        value: https://f1-client-ui.onrender.com
+      - key: LOG_LEVEL
+        value: info
+      - key: DETAILED_ERRORS
+        value: false
+      - key: DEV_MODE
+        value: false
+      - key: ENABLE_DEBUG_LOGGING
+        value: false
+      - key: OPENAI_MODEL_PRIMARY
+        value: gpt-4o
+      - key: OPENAI_MODEL_SECONDARY
+        value: gpt-4o-mini
+      - key: CACHE_TTL_DEFAULT
+        value: 300
+      - key: RATE_LIMIT_MAX_REQUESTS
+        value: 100
+    healthCheckPath: /health
