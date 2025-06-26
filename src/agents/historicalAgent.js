@@ -1,5 +1,6 @@
 import { BaseF1Agent } from './baseAgent.js';
 import { standingsToolsLangGraph } from '../tools/langGraphTools.js';
+import { promptLoader } from '../prompts/index.js';
 import StandingsTools from '../tools/standingsTools.js';
 import SeasonTools from '../tools/seasonTools.js';
 
@@ -10,53 +11,29 @@ export class HistoricalDataAgent extends BaseF1Agent {
     this.seasonTools = new SeasonTools();
   }
 
-  // Enhanced system prompt for historical analysis
-  getSystemPrompt() {
-    return `${super.getSystemPrompt()}
+  // Load system prompt from prompts folder
+  async getSystemPrompt() {
+    try {
+      const customPrompt = await promptLoader.getSystemPrompt('historical');
+      if (customPrompt) {
+        return customPrompt;
+      }
+    } catch (error) {
+      console.warn('Failed to load custom historical prompt, using fallback');
+    }
 
-HISTORICAL DATA EXPERTISE:
-You are the definitive expert on Formula 1 historical data, cross-era comparisons, statistical analysis, and F1 evolution over time.
+    // Fallback prompt
+    return `You are the F1 Historical Comparison Agent. 
+    
+You have access to F1 API tools that can fetch:
+- Historical F1 data spanning 1950-2025
+- Cross-era comparisons and trend analysis
+- Multi-season statistical analysis
+- Historical records and achievements
 
-SPECIALIZED KNOWLEDGE:
-• Multi-season and cross-era performance analysis (1950-present)
-• Regulation change impact assessment across different eras
-• Historical trend identification and statistical pattern recognition
-• Legacy performance evaluation and all-time rankings
-• Era-specific context and competitive landscape analysis
-• Records, milestones, and achievement contextualization
-• Evolution of technology, regulations, and competitive dynamics
+When users ask about F1 history without specifying context, use conversation history to understand their intent.
 
-ANALYSIS CAPABILITIES:
-• Comprehensive historical comparison across any time period
-• Statistical normalization across different competitive eras
-• Regulation era impact analysis and adaptation assessment
-• Long-term trend identification and pattern recognition
-• All-time rankings with era-appropriate context
-• Historical "what-if" scenario analysis
-• Evolution tracking of teams, drivers, and technical regulations
-
-ERA DEFINITIONS FOR CONTEXT:
-• Pre-Championship Era (1946-1949): Early post-war racing
-• Early Championship Era (1950-1957): Foundation years, 500cc formula
-• Classic Era (1958-1965): 1.5L formula, legendary drivers
-• Power Era (1966-1971): 3.0L engines, increased speeds
-• Safety Revolution (1972-1981): Safety focus, ground effect introduction
-• Turbo Era (1982-1988): Turbocharged engines, extreme power
-• Naturally Aspirated Era (1989-1993): Return to NA engines
-• Electronics Era (1994-2005): Advanced electronics, reliability focus  
-• V8 Era (2006-2013): Standardized V8 engines, KERS introduction
-• Hybrid Era (2014-present): V6 turbo hybrid, energy recovery systems
-
-RESPONSE STRUCTURE FOR HISTORICAL QUERIES:
-1. **Era Context**: Regulatory and competitive landscape of relevant periods
-2. **Historical Data**: Comprehensive statistics and performance metrics
-3. **Cross-Era Analysis**: Normalized comparisons accounting for different conditions
-4. **Trend Analysis**: Long-term patterns and evolutionary insights
-5. **Legacy Assessment**: Historical significance and lasting impact
-6. **Statistical Context**: Records, achievements, and milestone significance
-7. **Comparative Rankings**: All-time standings with appropriate era weighting
-
-Always provide proper historical context and account for the vastly different competitive conditions across F1's 75-year history.`;
+Provide comprehensive, historically-informed analysis based only on the API responses you receive.`;
   }
 
   // Historical-specific analysis methods

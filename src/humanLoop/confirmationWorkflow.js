@@ -25,8 +25,8 @@ export class ConfirmationWorkflow {
       this.containsSensitiveContent(queryAnalysis.query) ||
       
       // User explicitly requested validation
-      queryAnalysis.query.toLowerCase().includes('confirm') ||
-      queryAnalysis.query.toLowerCase().includes('verify') ||
+      (queryAnalysis.query && queryAnalysis.query.toLowerCase().includes('confirm')) ||
+      (queryAnalysis.query && queryAnalysis.query.toLowerCase().includes('verify')) ||
       
       // Historical comparisons spanning multiple eras
       this.isHistoricalComparison(queryAnalysis);
@@ -297,6 +297,10 @@ export class ConfirmationWorkflow {
    * Check for sensitive content
    */
   containsSensitiveContent(query) {
+    if (!query || typeof query !== 'string') {
+      return false;
+    }
+    
     const sensitiveTerms = [
       'bet', 'gambling', 'odds', 'prediction', 'forecast', 'invest',
       'financial', 'money', 'profit', 'loss', 'risk'
@@ -310,6 +314,10 @@ export class ConfirmationWorkflow {
    * Check if query is historical comparison
    */
   isHistoricalComparison(queryAnalysis) {
+    if (!queryAnalysis || !queryAnalysis.entities || !queryAnalysis.entities.years) {
+      return false;
+    }
+    
     const hasMultipleEras = queryAnalysis.entities.years.length > 1;
     const yearSpan = queryAnalysis.entities.years.length > 1 
       ? Math.max(...queryAnalysis.entities.years) - Math.min(...queryAnalysis.entities.years)

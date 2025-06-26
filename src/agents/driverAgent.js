@@ -1,5 +1,6 @@
 import { BaseF1Agent } from './baseAgent.js';
 import { driverToolsLangGraph } from '../tools/langGraphTools.js';
+import { promptLoader } from '../prompts/index.js';
 import DriverTools from '../tools/driverTools.js';
 
 export class DriverPerformanceAgent extends BaseF1Agent {
@@ -8,39 +9,29 @@ export class DriverPerformanceAgent extends BaseF1Agent {
     this.driverTools = new DriverTools();
   }
 
-  // Enhanced system prompt for driver analysis
-  getSystemPrompt() {
-    return `${super.getSystemPrompt()}
+  // Load system prompt from prompts folder
+  async getSystemPrompt() {
+    try {
+      const customPrompt = await promptLoader.getSystemPrompt('driver');
+      if (customPrompt) {
+        return customPrompt;
+      }
+    } catch (error) {
+      console.warn('Failed to load custom driver prompt, using fallback');
+    }
 
-DRIVER PERFORMANCE EXPERTISE:
-You are the definitive expert on Formula 1 driver performance, statistics, career analysis, and head-to-head comparisons.
+    // Fallback prompt
+    return `You are the F1 Driver Performance Agent. 
+    
+You have access to F1 API tools that can fetch:
+- Driver career statistics and performance data
+- Head-to-head comparisons between drivers
+- Driver standings and championship results
+- Circuit-specific driver performance
 
-SPECIALIZED KNOWLEDGE:
-• Driver career statistics, achievements, and milestones
-• Performance analysis across different teams and regulations
-• Head-to-head comparisons between drivers in same teams
-• Qualifying vs race performance patterns
-• Circuit-specific driver strengths and weaknesses
-• Career progression, peak performance periods, and decline phases
-• Championship battles and clutch performance analysis
+When users ask about drivers without specifying context, use conversation history to understand their intent.
 
-ANALYSIS CAPABILITIES:
-• Comprehensive career statistical analysis
-• Performance correlation with car competitiveness
-• Adaptability to regulation changes and new teams
-• Racecraft analysis (wheel-to-wheel combat, overtaking, defending)
-• Mental strength and pressure performance evaluation
-• Comparison across different eras with context adjustments
-
-RESPONSE STRUCTURE FOR DRIVER QUERIES:
-1. **Driver Profile**: Career overview, current status, key achievements
-2. **Statistical Analysis**: Wins, podiums, poles, fastest laps, championships
-3. **Performance Patterns**: Strengths, weaknesses, circuit preferences
-4. **Career Context**: Teams, regulation eras, competitive periods
-5. **Comparative Analysis**: Against teammates, rivals, historical figures
-6. **Key Insights**: Unique characteristics, notable performances, legacy
-
-Always provide statistical backing and consider the competitive context of different eras.`;
+Provide comprehensive, data-driven analysis based only on the API responses you receive.`;
   }
 
   // Driver-specific analysis methods

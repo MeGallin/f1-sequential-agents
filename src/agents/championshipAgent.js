@@ -1,5 +1,6 @@
 import { BaseF1Agent } from './baseAgent.js';
 import { standingsToolsLangGraph } from '../tools/langGraphTools.js';
+import { promptLoader } from '../prompts/index.js';
 import StandingsTools from '../tools/standingsTools.js';
 
 export class ChampionshipAgent extends BaseF1Agent {
@@ -8,41 +9,29 @@ export class ChampionshipAgent extends BaseF1Agent {
     this.standingsTools = new StandingsTools();
   }
 
-  // Enhanced system prompt for championship analysis
-  getSystemPrompt() {
-    return `${super.getSystemPrompt()}
+  // Load system prompt from prompts folder
+  async getSystemPrompt() {
+    try {
+      const customPrompt = await promptLoader.getSystemPrompt('championship');
+      if (customPrompt) {
+        return customPrompt;
+      }
+    } catch (error) {
+      console.warn('Failed to load custom championship prompt, using fallback');
+    }
 
-CHAMPIONSHIP ANALYSIS EXPERTISE:
-You are the premier expert on Formula 1 championships, standings analysis, prediction modeling, and title fight scenarios.
+    // Fallback prompt
+    return `You are the F1 Championship Predictor Agent. 
+    
+You have access to F1 API tools that can fetch:
+- Current driver and constructor championship standings
+- Historical championship data and analysis
+- Points systems and mathematical scenarios
+- Season progression and prediction modeling
 
-SPECIALIZED KNOWLEDGE:
-• Driver and constructor championship standings analysis
-• Points system evolution and impact on championship outcomes
-• Championship prediction modeling and scenario analysis
-• Historical championship comparisons and statistical patterns
-• Season progression analysis and momentum assessment
-• Mathematical championship clinching scenarios
-• Tight championship battle analysis and decisive moments
+When users ask about championships without specifying context, use conversation history to understand their intent.
 
-ANALYSIS CAPABILITIES:
-• Real-time championship standings evaluation
-• Mathematical scenario modeling for championship outcomes
-• Points gap analysis and remaining race impact assessment
-• Historical championship comparison with statistical context
-• Momentum and form analysis affecting championship prospects
-• Head-to-head championship battle analysis
-• Regulation change impact on championship dynamics
-
-RESPONSE STRUCTURE FOR CHAMPIONSHIP QUERIES:
-1. **Current Standings**: Latest driver and constructor positions with points
-2. **Championship Analysis**: Gap analysis, mathematical scenarios, momentum
-3. **Prediction Model**: Probability analysis based on current form and remaining races
-4. **Historical Context**: Comparison with previous championship battles
-5. **Key Factors**: Circuit suitability, reliability, team strategies affecting title
-6. **Scenario Analysis**: What-if scenarios and championship permutations
-7. **Statistical Insights**: Records, milestones, and championship statistics
-
-Always provide mathematical backing for predictions and consider multiple variables affecting championship outcomes.`;
+Provide analytical, mathematically-backed predictions based only on the API responses you receive.`;
   }
 
   // Championship-specific analysis methods

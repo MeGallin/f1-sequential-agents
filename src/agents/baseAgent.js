@@ -64,43 +64,64 @@ Remember: You are an expert in ${
     return this._model;
   }
 
-  // Process a query with the agent
+  // Process a query with the agent - Updated to follow TFL pattern
   async processQuery(query, context = {}) {
     try {
       const startTime = Date.now();
       console.log(`🏁 ${this.config.name} processing: "${query}"`);
 
       // Prepare messages
+      const systemPrompt = await this.getSystemPrompt();
       const messages = [
-        new SystemMessage(this.getSystemPrompt()),
-        new HumanMessage(query),
+        new SystemMessage(systemPrompt),
       ];
 
-      // Add context if available
-      if (
-        context.conversationHistory &&
-        context.conversationHistory.length > 0
-      ) {
+      // Add conversation history if available (TFL pattern)
+      if (context.conversationHistory && context.conversationHistory.length > 0) {
         // Add recent conversation history
         const recentHistory = context.conversationHistory.slice(-3);
         recentHistory.forEach((entry) => {
           if (entry.role === 'user') {
-            messages.splice(-1, 0, new HumanMessage(entry.content));
+            messages.push(new HumanMessage(entry.content));
           } else if (entry.role === 'assistant') {
-            messages.splice(-1, 0, new AIMessage(entry.content));
+            messages.push(new AIMessage(entry.content));
           }
         });
+      }
+
+      // Handle year clarification context (Monaco -> "this year" flow)
+      if (context.needsYearClarification) {
+        const clarification = context.needsYearClarification;
+        
+        if (clarification.context === 'year_clarification') {
+          // User is responding to a year clarification request
+          const contextMessage = `CONTEXT: The user previously asked "${clarification.originalQuery}" and you asked for year clarification. They responded with "${clarification.yearResponse}". 
+
+INSTRUCTIONS:
+1. Interpret their year response (e.g., "this year" = 2024, "current season" = 2024, "last year" = 2023)
+2. Answer their original question using that interpreted year
+3. If they said "this year" or "current season", use 2024
+4. If they said "last year", use 2023
+5. If they specified a specific year like "2023", use that year
+
+Answer the original question: "${clarification.originalQuery}" for the year you determined from "${clarification.yearResponse}".`;
+          
+          messages.push(new HumanMessage(contextMessage));
+        } else {
+          // User query needs year clarification
+          const contextMessage = `INSTRUCTION: The user asked about "${query}" but didn't specify a year. Ask them which year they're referring to. Current year is 2024. Be helpful and direct.`;
+          messages.push(new HumanMessage(contextMessage));
+        }
       }
 
       // Add F1 data context if available
       if (context.f1Data && Object.keys(context.f1Data).length > 0) {
         const dataContext = this.formatF1DataContext(context.f1Data);
-        messages.splice(
-          -1,
-          0,
-          new HumanMessage(`Context data: ${dataContext}`),
-        );
+        messages.push(new HumanMessage(`Context data: ${dataContext}`));
       }
+
+      // Add the current user query
+      messages.push(new HumanMessage(query));
 
       // Invoke the model
       const response = await this.model.invoke(messages);
@@ -159,7 +180,44 @@ Remember: You are an expert in ${
       contextParts.push(`Race results data available`);
     }
 
-    return contextParts.join(', ') || 'No specific F1 data context';
+    // Handle race analysis data
+    if (f1Data.race && f1Data.analysis) {
+      const race = f1Data.race;
+      const analysis = f1Data.analysis;
+      
+      contextParts.push(`\n\nRACE DATA AVAILABLE:\n`);
+      
+      if (race.raceName) {
+        contextParts.push(`Race: ${race.raceName} (${race.season} Round ${race.round})`);
+      }
+      
+      if (race.Circuit) {
+        contextParts.push(`Circuit: ${race.Circuit.circuitName}`);
+      }
+      
+      if (race.Results && race.Results.length > 0) {
+        contextParts.push(`\nRACE RESULTS - TOP 10:`);
+        race.Results.slice(0, 10).forEach(result => {
+          const driver = `${result.Driver?.givenName} ${result.Driver?.familyName}`;
+          const team = result.Constructor?.name;
+          const time = result.Time?.time || result.status;
+          contextParts.push(`${result.position}. ${driver} (${team}) - ${time}`);
+        });
+      }
+
+      if (analysis.raceOutcome && analysis.raceOutcome.podium) {
+        contextParts.push(`\nPODIUM:`);
+        analysis.raceOutcome.podium.forEach(podium => {
+          contextParts.push(`${podium.position}. ${podium.driver} (${podium.constructor}) - ${podium.points} points`);
+        });
+      }
+
+      if (analysis.raceOutcome && analysis.raceOutcome.fastestLap) {
+        contextParts.push(`\nFastest Lap: ${analysis.raceOutcome.fastestLap.driver} - ${analysis.raceOutcome.fastestLap.time}`);
+      }
+    }
+
+    return contextParts.join('\n') || 'No specific F1 data context';
   }
 
   // Calculate confidence based on query and response

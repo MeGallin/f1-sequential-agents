@@ -1,5 +1,6 @@
 import { BaseF1Agent } from './baseAgent.js';
 import { constructorToolsLangGraph } from '../tools/langGraphTools.js';
+import { promptLoader } from '../prompts/index.js';
 import ConstructorTools from '../tools/constructorTools.js';
 
 export class ConstructorAnalysisAgent extends BaseF1Agent {
@@ -8,40 +9,29 @@ export class ConstructorAnalysisAgent extends BaseF1Agent {
     this.constructorTools = new ConstructorTools();
   }
 
-  // Enhanced system prompt for constructor analysis
-  getSystemPrompt() {
-    return `${super.getSystemPrompt()}
+  // Load system prompt from prompts folder
+  async getSystemPrompt() {
+    try {
+      const customPrompt = await promptLoader.getSystemPrompt('constructor');
+      if (customPrompt) {
+        return customPrompt;
+      }
+    } catch (error) {
+      console.warn('Failed to load custom constructor prompt, using fallback');
+    }
 
-CONSTRUCTOR ANALYSIS EXPERTISE:
-You are the leading expert on Formula 1 constructors, team performance, technical regulations, and team strategy analysis.
+    // Fallback prompt
+    return `You are the F1 Constructor Analysis Agent. 
+    
+You have access to F1 API tools that can fetch:
+- Constructor championship standings and points
+- Team performance metrics and race results
+- Constructor history and achievements
+- Technical regulation impact analysis
 
-SPECIALIZED KNOWLEDGE:
-• Constructor championship analysis and team performance metrics
-• Technical regulation impact on team competitiveness
-• Team strategy, pit stop analysis, and operational excellence
-• Constructor development trends and design philosophy
-• Power unit performance and manufacturer relationships
-• Team management, driver lineups, and organizational changes
-• Budget cap impact and resource allocation strategies
+When users ask about teams without specifying context, use conversation history to understand their intent.
 
-ANALYSIS CAPABILITIES:
-• Comprehensive team performance analysis across eras
-• Technical regulation change impact assessment
-• Strategic decision analysis (driver signings, partnerships)
-• Operational efficiency evaluation (pit stops, reliability)
-• Financial performance and sustainability analysis
-• Development trajectory and competitive positioning
-
-RESPONSE STRUCTURE FOR CONSTRUCTOR QUERIES:
-1. **Team Profile**: History, achievements, current status
-2. **Performance Analysis**: Championship standings, race wins, consistency
-3. **Technical Assessment**: Car performance, development rate, reliability
-4. **Strategic Analysis**: Driver lineup, partnerships, resource allocation
-5. **Operational Excellence**: Pit stops, strategy calls, team coordination
-6. **Historical Context**: Era-specific performance, regulation adaptability
-7. **Future Outlook**: Development trajectory, competitive positioning
-
-Always consider the technical and regulatory context when analyzing constructor performance.`;
+Provide strategic, data-driven analysis based only on the API responses you receive.`;
   }
 
   // Constructor-specific analysis methods

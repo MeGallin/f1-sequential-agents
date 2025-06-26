@@ -230,9 +230,14 @@ class F1StateGraphOrchestrator {
     
     try {
       const query = state.queryAnalysis.originalQuery;
+      const conversationContext = state.queryAnalysis?.conversationContext;
       const context = {
         f1Data: state.f1Data,
-        conversationContext: state.conversationContext,
+        conversationContext: conversationContext,
+        conversationHistory: conversationContext?.recentMessages?.map(msg => ({
+          role: msg.content ? (msg.constructor.name === 'HumanMessage' ? 'user' : 'assistant') : 'unknown',
+          content: msg.content || ''
+        })) || [],
         queryAnalysis: state.queryAnalysis
       };
 
@@ -273,9 +278,14 @@ class F1StateGraphOrchestrator {
       const query = state.queryAnalysis.originalQuery;
       const selectedAgents = this.selectMultipleAgents(state);
       
+      const conversationContext = state.queryAnalysis?.conversationContext;
       const context = {
         f1Data: state.f1Data,
-        conversationContext: state.conversationContext,
+        conversationContext: conversationContext,
+        conversationHistory: conversationContext?.recentMessages?.map(msg => ({
+          role: msg.content ? (msg.constructor.name === 'HumanMessage' ? 'user' : 'assistant') : 'unknown',
+          content: msg.content || ''
+        })) || [],
         queryAnalysis: state.queryAnalysis
       };
 
