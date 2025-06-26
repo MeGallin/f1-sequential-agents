@@ -4,15 +4,15 @@
  */
 
 export class PromptLoader {
-  static async getSystemPrompt(agentType, promptType = 'system') {
+  async getSystemPrompt(agentType, promptType = 'system') {
     try {
       const agentMapping = {
-        'raceResults': 'race-results',
-        'circuit': 'circuit-analysis',
-        'driver': 'driver-performance',
-        'constructor': 'constructor-analysis',
-        'championship': 'championship-predictor',
-        'historical': 'historical-comparison'
+        raceResults: 'race-results',
+        circuit: 'circuit-analysis',
+        driver: 'driver-performance',
+        constructor: 'constructor-analysis',
+        championship: 'championship-predictor',
+        historical: 'historical-comparison',
       };
 
       const agentFolder = agentMapping[agentType];
@@ -25,20 +25,23 @@ export class PromptLoader {
       const module = await import(promptPath);
       return module.systemPrompt || module.default;
     } catch (error) {
-      console.warn(`Failed to load prompt for ${agentType}/${promptType}:`, error.message);
+      console.warn(
+        `Failed to load prompt for ${agentType}/${promptType}:`,
+        error.message,
+      );
       return null;
     }
   }
 
-  static async getAnalysisPrompt(agentType, analysisType, variables = {}) {
+  async getAnalysisPrompt(agentType, analysisType, variables = {}) {
     try {
       const agentMapping = {
-        'raceResults': 'race-results',
-        'circuit': 'circuit-analysis',
-        'driver': 'driver-performance',
-        'constructor': 'constructor-analysis',
-        'championship': 'championship-predictor',
-        'historical': 'historical-comparison'
+        raceResults: 'race-results',
+        circuit: 'circuit-analysis',
+        driver: 'driver-performance',
+        constructor: 'constructor-analysis',
+        championship: 'championship-predictor',
+        historical: 'historical-comparison',
       };
 
       const agentFolder = agentMapping[agentType];
@@ -52,14 +55,17 @@ export class PromptLoader {
 
       // Template variable substitution
       if (prompt && variables) {
-        Object.keys(variables).forEach(key => {
+        Object.keys(variables).forEach((key) => {
           prompt = prompt.replace(new RegExp(`{${key}}`, 'g'), variables[key]);
         });
       }
 
       return prompt;
     } catch (error) {
-      console.warn(`Failed to load analysis prompt for ${agentType}/${analysisType}:`, error.message);
+      console.warn(
+        `Failed to load analysis prompt for ${agentType}/${analysisType}:`,
+        error.message,
+      );
       return null;
     }
   }
